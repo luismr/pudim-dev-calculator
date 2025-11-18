@@ -106,6 +106,7 @@ export async function GET(
             height: '100%',
             backgroundColor: '#fef3c7',
             borderRadius: '24px',
+            border: '4px solid #d97706',
             padding: '40px',
             position: 'relative',
           }}
