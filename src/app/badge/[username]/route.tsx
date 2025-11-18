@@ -75,15 +75,26 @@ export async function GET(
               display: 'flex',
               width: '100%',
               height: '100%',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: '#fef3c7',
-              borderRadius: '24px',
-              padding: '40px',
+              backgroundColor: 'transparent',
+              padding: '20px',
             }}
           >
-            <div style={{ display: 'flex', fontSize: 32, color: '#78350f' }}>
-              User not found: {decodedUsername}
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                height: '100%',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#fef3c7',
+                borderRadius: '24px',
+                border: '4px solid #d97706',
+                padding: '40px',
+              }}
+            >
+              <div style={{ display: 'flex', fontSize: 32, color: '#78350f' }}>
+                User not found: {decodedUsername}
+              </div>
             </div>
           </div>
         ),
@@ -104,13 +115,22 @@ export async function GET(
             display: 'flex',
             width: '100%',
             height: '100%',
-            backgroundColor: '#fef3c7',
-            borderRadius: '24px',
-            border: '4px solid #d97706',
-            padding: '40px',
-            position: 'relative',
+            backgroundColor: 'transparent',
+            padding: '20px',
           }}
         >
+          <div
+            style={{
+              display: 'flex',
+              width: '100%',
+              height: '100%',
+              backgroundColor: '#fef3c7',
+              borderRadius: '24px',
+              border: '4px solid #d97706',
+              padding: '40px',
+              position: 'relative',
+            }}
+          >
           {/* Background emoji */}
           <div
             style={{
@@ -287,6 +307,7 @@ export async function GET(
             )}
           </div>
         </div>
+        </div>
       ),
       {
         width: 1000,
@@ -302,14 +323,25 @@ export async function GET(
             display: 'flex',
             width: '100%',
             height: '100%',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#fef3c7',
-            borderRadius: '24px',
+            backgroundColor: 'transparent',
+            padding: '20px',
           }}
         >
-          <div style={{ display: 'flex', fontSize: 32, color: '#78350f' }}>
-            Error generating badge
+          <div
+            style={{
+              display: 'flex',
+              width: '100%',
+              height: '100%',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#fef3c7',
+              borderRadius: '24px',
+              border: '4px solid #d97706',
+            }}
+          >
+            <div style={{ display: 'flex', fontSize: 32, color: '#78350f' }}>
+              Error generating badge
+            </div>
           </div>
         </div>
       ),
