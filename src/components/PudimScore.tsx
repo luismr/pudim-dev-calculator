@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { getGithubStats } from "@/app/actions"
-import { Loader2, Star, Users, GitFork } from "lucide-react"
+import { Loader2, Star, Users, GitFork, Info } from "lucide-react"
 
 type PudimRank = {
   rank: string;
@@ -68,6 +69,7 @@ export function PudimScore() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState("")
+  const [showRankInfo, setShowRankInfo] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -132,8 +134,113 @@ export function PudimScore() {
                 <div className={`text-2xl font-extrabold leading-none ${result.rank.color}`}>
                   {result.rank.rank}
                 </div>
-                <div className={`text-[10px] font-bold whitespace-nowrap leading-tight ${result.rank.color}`}>
-                  {result.rank.title}
+                <div className="flex items-center gap-1 justify-end">
+                  <Dialog open={showRankInfo} onOpenChange={setShowRankInfo}>
+                    <DialogTrigger asChild>
+                      <button 
+                        className="hover:opacity-70 transition-opacity" 
+                        title="View ranking thresholds"
+                        aria-label="View ranking thresholds"
+                      >
+                        <Info className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Pudim Rank Thresholds</DialogTitle>
+                        <DialogDescription>
+                          How your Pudim Score translates into ranks and titles
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="text-sm">
+                          <p className="mb-3 text-muted-foreground">
+                            The Pudim Score uses a weighted algorithm:
+                          </p>
+                          <code className="block bg-muted p-3 rounded-md text-xs mb-4">
+                            score = (followers × 0.5) + (total_stars × 2) + (public_repos × 1)
+                          </code>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm border-collapse">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="text-left py-2 px-3 font-semibold">Score</th>
+                                <th className="text-left py-2 px-3 font-semibold">Rank</th>
+                                <th className="text-left py-2 px-3 font-semibold">Title</th>
+                                <th className="text-left py-2 px-3 font-semibold">Description</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="border-b hover:bg-muted/50">
+                                <td className="py-2 px-3">1000+</td>
+                                <td className="py-2 px-3">
+                                  <span className="font-bold text-amber-500">S+</span>
+                                </td>
+                                <td className="py-2 px-3">Legendary Flan 🍮✨</td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  The texture is perfect, the caramel is divine. You are a coding god!
+                                </td>
+                              </tr>
+                              <tr className="border-b hover:bg-muted/50">
+                                <td className="py-2 px-3">500-999</td>
+                                <td className="py-2 px-3">
+                                  <span className="font-bold text-yellow-600">S</span>
+                                </td>
+                                <td className="py-2 px-3">Master Pudim 🍮</td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  A delicious result. Michelin star worthy.
+                                </td>
+                              </tr>
+                              <tr className="border-b hover:bg-muted/50">
+                                <td className="py-2 px-3">200-499</td>
+                                <td className="py-2 px-3">
+                                  <span className="font-bold text-orange-500">A</span>
+                                </td>
+                                <td className="py-2 px-3">Tasty Pudding 😋</td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  Everyone wants a slice. Great job!
+                                </td>
+                              </tr>
+                              <tr className="border-b hover:bg-muted/50">
+                                <td className="py-2 px-3">100-199</td>
+                                <td className="py-2 px-3">
+                                  <span className="font-bold text-orange-400">B</span>
+                                </td>
+                                <td className="py-2 px-3">Sweet Treat 🍬</td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  Solid and dependable. A good dessert.
+                                </td>
+                              </tr>
+                              <tr className="border-b hover:bg-muted/50">
+                                <td className="py-2 px-3">50-99</td>
+                                <td className="py-2 px-3">
+                                  <span className="font-bold text-yellow-700">C</span>
+                                </td>
+                                <td className="py-2 px-3">Homemade 🏠</td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  Made with love, but room for improvement.
+                                </td>
+                              </tr>
+                              <tr className="hover:bg-muted/50">
+                                <td className="py-2 px-3">0-49</td>
+                                <td className="py-2 px-3">
+                                  <span className="font-bold text-zinc-500">D</span>
+                                </td>
+                                <td className="py-2 px-3">Underbaked 🥚</td>
+                                <td className="py-2 px-3 text-muted-foreground">
+                                  Needs a bit more time in the oven.
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <div className={`text-[10px] font-bold whitespace-nowrap leading-tight ${result.rank.color}`}>
+                    {result.rank.title}
+                  </div>
                 </div>
               </div>
             </div>
