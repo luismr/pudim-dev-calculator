@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -64,23 +64,26 @@ const languageColors: Record<string, string> = {
   Solidity: "#aa6746",
 };
 
-export function PudimScore() {
-  const [username, setUsername] = useState("")
+interface PudimScoreProps {
+  initialUsername?: string
+}
+
+export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
+  const [username, setUsername] = useState(initialUsername || "")
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState("")
   const [showRankInfo, setShowRankInfo] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!username.trim()) return
+  async function loadStats(usernameToLoad: string) {
+    if (!usernameToLoad.trim()) return
 
     setLoading(true)
     setError("")
     setResult(null)
 
     try {
-      const data = await getGithubStats(username)
+      const data = await getGithubStats(usernameToLoad)
       if (data.error) {
         setError(data.error)
       } else {
@@ -93,6 +96,18 @@ export function PudimScore() {
       setLoading(false)
     }
   }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    loadStats(username)
+  }
+
+  useEffect(() => {
+    if (initialUsername) {
+      loadStats(initialUsername)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialUsername])
 
   return (
     <div className="w-full max-w-sm mx-auto space-y-3">
