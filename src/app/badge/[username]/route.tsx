@@ -33,7 +33,13 @@ type PudimRank = {
   color: string
 }
 
-function calculatePudimScore(stats: any): { score: number; rank: PudimRank } {
+type GitHubStats = {
+  followers: number
+  total_stars: number
+  public_repos: number
+}
+
+function calculatePudimScore(stats: GitHubStats): { score: number; rank: PudimRank } {
   const score = (stats.followers * 0.5) + (stats.total_stars * 2) + (stats.public_repos * 1)
   
   let rank: PudimRank
@@ -105,7 +111,7 @@ export async function GET(
       )
     }
 
-    const { score, rank } = calculatePudimScore(stats)
+    const { rank } = calculatePudimScore(stats)
     const topLanguages = stats.languages?.slice(0, 5) || []
 
     return new ImageResponse(
@@ -164,6 +170,7 @@ export async function GET(
             >
               {/* User info */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={stats.avatar_url}
                   alt={stats.username}
@@ -268,7 +275,7 @@ export async function GET(
                     backgroundColor: '#e5e7eb',
                   }}
                 >
-                  {topLanguages.map((lang: any) => (
+                  {topLanguages.map((lang: { name: string; percentage: number }) => (
                     <div
                       key={lang.name}
                       style={{
@@ -287,7 +294,7 @@ export async function GET(
                     gap: '20px',
                   }}
                 >
-                  {topLanguages.map((lang: any) => (
+                  {topLanguages.map((lang: { name: string; percentage: number }) => (
                     <div key={lang.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div
                         style={{

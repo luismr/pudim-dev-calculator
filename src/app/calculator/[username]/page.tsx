@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { PudimScore } from "@/components/PudimScore"
 import { Metadata } from "next"

@@ -19,13 +19,13 @@ export async function getGithubStats(username: string) {
     const reposResponse = await fetch(user.repos_url + "?per_page=100");
     const repos = reposResponse.ok ? await reposResponse.json() : [];
     
-    const stars = repos.reduce((acc: number, repo: any) => acc + repo.stargazers_count, 0);
+    const stars = repos.reduce((acc: number, repo: { stargazers_count: number }) => acc + repo.stargazers_count, 0);
     
     // Calculate Language Usage
     const languageCounts: Record<string, number> = {};
     let totalReposWithLang = 0;
 
-    repos.forEach((repo: any) => {
+    repos.forEach((repo: { language: string | null; size: number }) => {
       if (repo.language) {
         languageCounts[repo.language] = (languageCounts[repo.language] || 0) + 1;
         totalReposWithLang++;
@@ -50,7 +50,7 @@ export async function getGithubStats(username: string) {
       created_at: user.created_at,
       languages,
     };
-  } catch (error) {
+  } catch {
     return { error: "An unexpected error occurred" };
   }
 }

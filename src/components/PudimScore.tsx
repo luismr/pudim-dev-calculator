@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { getGithubStats } from "@/app/actions"
 import { Loader2, Star, Users, GitFork, Info } from "lucide-react"
@@ -17,7 +16,17 @@ type PudimRank = {
   color: string;
 }
 
-function calculatePudimScore(stats: any): { score: number; rank: PudimRank } {
+type GitHubStats = {
+  followers: number;
+  total_stars: number;
+  public_repos: number;
+  username: string;
+  avatar_url: string;
+  created_at: string;
+  languages?: Array<{ name: string; percentage: number }>;
+}
+
+function calculatePudimScore(stats: GitHubStats): { score: number; rank: PudimRank } {
   // Simplified scoring algorithm inspired by github-readme-stats
   // A = 100, B = 50, C = 20 (weights)
   
@@ -71,11 +80,11 @@ interface PudimScoreProps {
 export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
   const [username, setUsername] = useState(initialUsername || "")
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<{ stats: GitHubStats; score: number; rank: PudimRank } | null>(null)
   const [error, setError] = useState("")
   const [showRankInfo, setShowRankInfo] = useState(false)
 
-  async function loadStats(usernameToLoad: string) {
+  const loadStats = useCallback(async (usernameToLoad: string) => {
     if (!usernameToLoad.trim()) return
 
     setLoading(true)
@@ -87,15 +96,15 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
       if (data.error) {
         setError(data.error)
       } else {
-        const analysis = calculatePudimScore(data)
-        setResult({ stats: data, ...analysis })
+        const analysis = calculatePudimScore(data as GitHubStats)
+        setResult({ stats: data as GitHubStats, ...analysis })
       }
-    } catch (err) {
+    } catch {
       setError("Something went wrong. Please try again.")
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -106,8 +115,7 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
     if (initialUsername) {
       loadStats(initialUsername)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialUsername])
+  }, [initialUsername, loadStats])
 
   return (
     <div className="w-full max-w-sm mx-auto space-y-3">
@@ -138,6 +146,7 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
           <CardHeader className="px-3 pt-2 pb-0">
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center space-x-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={result.stats.avatar_url} alt={result.stats.username} className="w-20 h-20 rounded-full border-2 border-primary" />
                 <div className="text-left"> 
                   <CardTitle className="text-base leading-tight">{result.stats.username}</CardTitle>
@@ -287,7 +296,7 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
                  
                  {/* Progress Bar */}
                  <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                    {result.stats.languages.map((lang: any) => (
+                    {result.stats.languages.map((lang) => (
                       <div 
                         key={lang.name}
                         style={{ width: `${lang.percentage}%`, backgroundColor: languageColors[lang.name] || '#ccc' }}
@@ -299,7 +308,7 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
 
                  {/* Legend */}
                  <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5">
-                    {result.stats.languages.map((lang: any) => (
+                    {result.stats.languages.map((lang) => (
                       <div key={lang.name} className="flex items-center gap-0.5">
                         <span 
                           className="h-1.5 w-1.5 rounded-full" 

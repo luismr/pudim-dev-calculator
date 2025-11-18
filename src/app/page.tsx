@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Code, Laptop, Zap, Calculator } from "lucide-react"
+import { Code, Zap, Calculator } from "lucide-react"
 import Link from "next/link"
 import { PudimScore } from "@/components/PudimScore"
 
@@ -41,7 +41,7 @@ export default function Home() {
           <div className="flex flex-col items-center justify-center space-y-4 mb-8">
             <Badge variant="secondary" className="rounded-full">Calculator</Badge>
             <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">
-              What's Your Pudim Rank?
+              What&apos;s Your Pudim Rank?
             </h2>
             <p className="max-w-[600px] text-muted-foreground md:text-xl/relaxed">
               Enter your GitHub username to reveal your sweet developer stats.
