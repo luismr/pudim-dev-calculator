@@ -39,11 +39,6 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              <Button asChild size="sm" className="mt-2">
-                <Link href="/#calculator" onClick={() => setOpen(false)}>
-                  Calculator
-                </Link>
-              </Button>
             </nav>
           </SheetContent>
         </Sheet>
@@ -70,12 +65,13 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <Button asChild size="sm">
-              <Link href="/#calculator">
-                Calculator
-              </Link>
-            </Button>
           </nav>
+          {/* Calculator Button - Always visible */}
+          <Button asChild size="sm">
+            <Link href="/#calculator">
+              Calculator
+            </Link>
+          </Button>
         </div>
       </div>
     </header>
