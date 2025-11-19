@@ -200,11 +200,12 @@ export default function Home() {
           </div>
 
           {/* Rank Thresholds */}
-          <div id="ranking" className="max-w-7xl mx-auto scroll-mt-20">
-            <div className="text-center mb-8">
+          <div id="ranking" className="max-w-7xl mx-auto scroll-mt-20 mt-16">
+            <div className="text-center mb-12">
+              <Badge variant="secondary" className="rounded-full mb-4">Ranking</Badge>
               <Trophy className="h-12 w-12 mb-4 text-primary mx-auto" />
-              <h3 className="text-2xl font-bold mb-2">Rank Thresholds</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-4">Rank Thresholds</h3>
+              <p className="text-muted-foreground md:text-lg">
                 Your score determines your delicious title
               </p>
             </div>
