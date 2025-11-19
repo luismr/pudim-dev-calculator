@@ -14,7 +14,7 @@ export default function Home() {
           <div className="flex flex-col items-center space-y-4 text-center">
             <div className="space-y-2">
               <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl/none">
-                Calculate Your <span className="text-primary">Dev Pudim Score</span> 🍮
+                👀 Calculate Your<br/><span className="text-primary">Dev Pudim Score</span> 🍮
               </h1>
               <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
                 Discover your flavor profile in the developer world. Are you a Legendary Flan or an Uncooked Mix?

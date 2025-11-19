@@ -18,40 +18,41 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center px-4 md:px-6">
-        {/* Mobile Menu - Only on small screens */}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="mr-2 md:hidden">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle menu</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[240px] sm:w-[280px]">
-            {/* Menu Header */}
-            <div className="flex items-center justify-center space-x-2 pb-6 mb-6 mt-2 border-b">
-              <span className="text-2xl">🍮</span>
-              <span className="font-bold text-lg">pudim.dev</span>
-            </div>
-            
-            {/* Navigation Links */}
-            <nav className="flex flex-col gap-1 pl-2">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  className="text-base font-medium text-foreground transition-colors hover:text-primary py-2 px-2 rounded-md hover:bg-accent"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-          </SheetContent>
-        </Sheet>
+      <div className="container flex h-14 items-center justify-between px-4 md:px-6 w-full max-w-full">
+        {/* Left side: Mobile Menu + Logo */}
+        <div className="flex items-center flex-shrink-0">
+          {/* Mobile Menu - Only on small screens */}
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="mr-2 md:hidden">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[240px] sm:w-[280px]">
+              {/* Menu Header */}
+              <div className="flex items-center justify-center space-x-2 pb-6 mb-6 mt-2 border-b">
+                <span className="text-2xl">🍮</span>
+                <span className="font-bold text-lg">pudim.dev</span>
+              </div>
+              
+              {/* Navigation Links */}
+              <nav className="flex flex-col gap-1 pl-2">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setOpen(false)}
+                    className="text-base font-medium text-foreground transition-colors hover:text-primary py-2 px-2 rounded-md hover:bg-accent"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </nav>
+            </SheetContent>
+          </Sheet>
 
-        {/* Logo */}
-        <div className="flex">
+          {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
             <span className="text-2xl">🍮</span>
             <span className="font-bold inline-block">
@@ -60,11 +61,8 @@ export function Navbar() {
           </Link>
         </div>
 
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Desktop Navigation - Hidden on mobile - Always aligned right */}
-        <div className="flex items-center space-x-2">
+        {/* Right side: Desktop Navigation + Calculator Button - Always aligned right */}
+        <div className="flex items-center space-x-2 flex-shrink-0 ml-auto">
           <nav className="hidden md:flex items-center gap-4">
             {navLinks.map((link) => (
               <Link
@@ -76,8 +74,8 @@ export function Navbar() {
               </Link>
             ))}
           </nav>
-          {/* Calculator Button - Always visible */}
-          <Button asChild size="sm">
+          {/* Calculator Button - Always visible, forced to right */}
+          <Button asChild size="sm" className="ml-2">
             <Link href="/#calculator">
               Calculator
             </Link>
