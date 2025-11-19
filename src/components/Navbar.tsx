@@ -21,6 +21,9 @@ export function Navbar() {
             <Link href="/#algorithm" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
               Algorithm
             </Link>
+            <Link href="/#ranking" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+              Ranking
+            </Link>
             <Link href="/#philosophy" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
               Philosophy
             </Link>

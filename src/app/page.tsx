@@ -36,7 +36,7 @@ export default function Home() {
       </section>
 
       {/* Calculator Section */}
-      <section id="calculator" className="w-full py-12 md:py-24 lg:py-32 bg-muted/30">
+      <section id="calculator" className="w-full py-12 md:py-24 lg:py-32 bg-muted/30 scroll-mt-14">
         <div className="container px-4 md:px-6 mx-auto text-center">
           <div className="flex flex-col items-center justify-center space-y-4 mb-8">
             <Badge variant="secondary" className="rounded-full">Calculator</Badge>
@@ -52,7 +52,7 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="w-full py-12 md:py-24 lg:py-32 bg-background">
+      <section id="features" className="w-full py-12 md:py-24 lg:py-32 bg-background scroll-mt-14">
         <div className="container px-4 md:px-6 mx-auto">
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
             <Badge variant="secondary" className="rounded-full">Features</Badge>
@@ -121,7 +121,7 @@ export default function Home() {
       </section>
 
       {/* Score Calculation Section */}
-      <section id="algorithm" className="w-full py-12 md:py-24 lg:py-32 bg-muted/30">
+      <section id="algorithm" className="w-full py-12 md:py-24 lg:py-32 bg-muted/30 scroll-mt-14">
         <div className="container px-4 md:px-6 mx-auto">
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
             <Badge variant="secondary" className="rounded-full">Algorithm</Badge>
@@ -200,7 +200,7 @@ export default function Home() {
           </div>
 
           {/* Rank Thresholds */}
-          <div className="max-w-7xl mx-auto">
+          <div id="ranking" className="max-w-7xl mx-auto scroll-mt-20">
             <div className="text-center mb-8">
               <Trophy className="h-12 w-12 mb-4 text-primary mx-auto" />
               <h3 className="text-2xl font-bold mb-2">Rank Thresholds</h3>
@@ -351,7 +351,7 @@ export default function Home() {
       </section>
 
       {/* Philosophy Section */}
-      <section id="philosophy" className="w-full py-12 md:py-24 lg:py-32 bg-background">
+      <section id="philosophy" className="w-full py-12 md:py-24 lg:py-32 bg-background scroll-mt-14">
         <div className="container px-4 md:px-6 mx-auto">
           <div className="flex flex-col items-center justify-center space-y-4 text-center">
             <div className="space-y-2">
