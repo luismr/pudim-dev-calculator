@@ -10,6 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://pudim.dev'),
   title: "pudim.dev 🍮 - Calculate Your Dev Pudim Score",
   description: "🍮 Calculate your Dev Pudim Score! Gamifies your GitHub profile with dessert-themed ranks from Legendary Flan to Underbaked. Check your developer flavor!",
   keywords: ["GitHub", "developer", "stats", "pudim", "score", "ranking", "profile"],

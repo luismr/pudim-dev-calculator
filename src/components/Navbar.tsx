@@ -29,19 +29,19 @@ export function Navbar() {
           </SheetTrigger>
           <SheetContent side="left" className="w-[240px] sm:w-[280px]">
             {/* Menu Header */}
-            <div className="flex items-center space-x-2 mb-8 pb-4 border-b -mx-6 px-6">
+            <div className="flex items-center justify-center space-x-2 pb-6 mb-6 mt-2 border-b">
               <span className="text-2xl">🍮</span>
               <span className="font-bold text-lg">pudim.dev</span>
             </div>
             
             {/* Navigation Links */}
-            <nav className="flex flex-col gap-4">
+            <nav className="flex flex-col gap-1 pl-2">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
                   onClick={() => setOpen(false)}
-                  className="text-base font-medium text-foreground transition-colors hover:text-primary py-2"
+                  className="text-base font-medium text-foreground transition-colors hover:text-primary py-2 px-2 rounded-md hover:bg-accent"
                 >
                   {link.label}
                 </Link>
