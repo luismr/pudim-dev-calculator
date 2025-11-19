@@ -13,9 +13,34 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { username } = await params
   const decodedUsername = decodeURIComponent(username)
   
+  const title = `🍮 ${decodedUsername}'s Pudim Score | pudim.dev`
+  const description = `Check out ${decodedUsername}'s Dev Pudim Score! Discover their GitHub stats and developer flavor profile.`
+  const badgeUrl = `https://pudim.dev/badge/${encodeURIComponent(username)}`
+  
   return {
-    title: `${decodedUsername}'s Pudim Score | pudim.dev`,
-    description: `Check out ${decodedUsername}'s Dev Pudim Score! Discover their GitHub stats and developer flavor profile.`,
+    title,
+    description,
+    openGraph: {
+      type: "website",
+      url: `https://pudim.dev/calculator/${encodeURIComponent(username)}`,
+      title,
+      description,
+      siteName: "pudim.dev",
+      images: [
+        {
+          url: badgeUrl,
+          width: 1000,
+          height: 600,
+          alt: `${decodedUsername}'s Pudim Score`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [badgeUrl],
+    },
   }
 }
 
