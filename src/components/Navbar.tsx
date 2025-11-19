@@ -27,9 +27,9 @@ export function Navbar() {
               <span className="sr-only">Toggle menu</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[240px] sm:w-[280px] pl-6">
+          <SheetContent side="left" className="w-[240px] sm:w-[280px]">
             {/* Menu Header */}
-            <div className="flex items-center space-x-2 mb-8 pb-4 border-b">
+            <div className="flex items-center space-x-2 mb-8 pb-4 border-b -mx-6 px-6">
               <span className="text-2xl">🍮</span>
               <span className="font-bold text-lg">pudim.dev</span>
             </div>
