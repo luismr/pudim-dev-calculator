@@ -27,8 +27,15 @@ export function Navbar() {
               <span className="sr-only">Toggle menu</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[240px] sm:w-[280px]">
-            <nav className="flex flex-col gap-4 mt-8">
+          <SheetContent side="left" className="w-[240px] sm:w-[280px] pl-6">
+            {/* Menu Header */}
+            <div className="flex items-center space-x-2 mb-8 pb-4 border-b">
+              <span className="text-2xl">🍮</span>
+              <span className="font-bold text-lg">pudim.dev</span>
+            </div>
+            
+            {/* Navigation Links */}
+            <nav className="flex flex-col gap-4">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
