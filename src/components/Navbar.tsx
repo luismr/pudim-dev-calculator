@@ -51,8 +51,8 @@ export function Navbar() {
         </Sheet>
 
         {/* Logo */}
-        <div className="mr-4 flex">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
+        <div className="flex">
+          <Link href="/" className="flex items-center space-x-2">
             <span className="text-2xl">🍮</span>
             <span className="font-bold inline-block">
               pudim.dev
@@ -60,8 +60,11 @@ export function Navbar() {
           </Link>
         </div>
 
-        {/* Desktop Navigation - Hidden on mobile */}
-        <div className="flex flex-1 items-center justify-end space-x-2">
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Desktop Navigation - Hidden on mobile - Always aligned right */}
+        <div className="flex items-center space-x-2">
           <nav className="hidden md:flex items-center gap-4">
             {navLinks.map((link) => (
               <Link
