@@ -2,7 +2,10 @@ name: Docker Build & Push
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - 'feature/*'
+      - 'hotfix/*'
     tags:
       - 'v*.*.*'
   pull_request:
