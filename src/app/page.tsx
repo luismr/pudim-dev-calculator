@@ -6,8 +6,52 @@ import Link from "next/link"
 import { PudimScore } from "@/components/PudimScore"
 
 export default function Home() {
+  // WebPage structured data
+  const webPageSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "pudim.dev - Calculate Your Dev Pudim Score",
+    "description": "Calculate your Dev Pudim Score! Gamifies your GitHub profile with dessert-themed ranks from Legendary Flan to Underbaked.",
+    "url": "https://pudim.dev",
+    "inLanguage": "en-US",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "pudim.dev",
+      "url": "https://pudim.dev"
+    },
+    "about": {
+      "@type": "Thing",
+      "name": "GitHub Developer Score Calculator",
+      "description": "A fun tool to calculate and share your GitHub developer score with dessert-themed rankings"
+    }
+  };
+
+  // SoftwareApplication schema
+  const softwareApplicationSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Dev Pudim Score Calculator",
+    "url": "https://pudim.dev",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Web",
+    "description": "Calculate your GitHub developer score with dessert-themed rankings. Check your stats, rank, and share your profile.",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  };
+
   return (
     <main className="flex flex-col items-center w-full">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }}
+      />
       {/* Hero Section */}
       <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48 bg-background">
         <div className="container px-4 md:px-6 mx-auto">

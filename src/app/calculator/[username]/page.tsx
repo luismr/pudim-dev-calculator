@@ -13,16 +13,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { username } = await params
   const decodedUsername = decodeURIComponent(username)
   
-  const title = `🍮 ${decodedUsername}'s Pudim Score | pudim.dev`
-  const description = `Check out ${decodedUsername}'s Dev Pudim Score! Discover their GitHub stats and developer flavor profile.`
+  const title = `🍮 ${decodedUsername}'s Pudim Score`
+  const description = `Check out ${decodedUsername}'s Dev Pudim Score! Discover their GitHub stats, developer flavor profile, and see how they rank among developers.`
   const badgeUrl = `https://pudim.dev/badge/${encodeURIComponent(username)}`
+  const pageUrl = `https://pudim.dev/calculator/${encodeURIComponent(username)}`
   
   return {
     title,
     description,
+    keywords: [`${decodedUsername}`, "GitHub stats", "developer score", "pudim score", "GitHub profile", decodedUsername],
+    alternates: {
+      canonical: pageUrl,
+    },
     openGraph: {
-      type: "website",
-      url: `https://pudim.dev/calculator/${encodeURIComponent(username)}`,
+      type: "profile",
+      url: pageUrl,
       title,
       description,
       siteName: "pudim.dev",
@@ -32,6 +37,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
           width: 1000,
           height: 600,
           alt: `${decodedUsername}'s Pudim Score`,
+          type: "image/png",
         },
       ],
     },
@@ -40,15 +46,76 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title,
       description,
       images: [badgeUrl],
+      creator: "@pudimdev",
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
     },
   }
 }
 
 export default async function CalculatorPage({ params }: PageProps) {
   const { username } = await params
+  const decodedUsername = decodeURIComponent(username)
+  const pageUrl = `https://pudim.dev/calculator/${encodeURIComponent(username)}`
+
+  // Breadcrumb structured data
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://pudim.dev"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Calculator",
+        "item": "https://pudim.dev/calculator"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": `${decodedUsername}'s Score`,
+        "item": pageUrl
+      }
+    ]
+  };
+
+  // ProfilePage structured data
+  const profilePageSchema = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    "name": `${decodedUsername}'s Dev Pudim Score`,
+    "description": `GitHub developer profile and stats for ${decodedUsername}`,
+    "url": pageUrl,
+    "mainEntity": {
+      "@type": "Person",
+      "name": decodedUsername,
+      "url": `https://github.com/${decodedUsername}`
+    }
+  };
 
   return (
     <main className="flex flex-col items-center w-full">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(profilePageSchema) }}
+      />
       {/* Header */}
       <section className="w-full py-8 md:py-12 bg-background border-b">
         <div className="container px-4 md:px-6 mx-auto">

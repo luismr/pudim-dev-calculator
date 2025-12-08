@@ -6,9 +6,11 @@ describe('Calculator Page - Metadata Generation', () => {
     const params = Promise.resolve({ username: 'testuser' })
     const metadata = await generateMetadata({ params })
     
-    expect(metadata.title).toContain('testuser')
-    expect(metadata.title).toContain('pudim.dev')
-    expect(metadata.title).toContain('🍮')
+    // Title is now a string that will be combined with template from layout
+    const title = typeof metadata.title === 'string' ? metadata.title : metadata.title?.default || ''
+    expect(title).toContain('testuser')
+    expect(title).toContain('🍮')
+    expect(title).toContain('Pudim Score')
   })
 
   it('generates metadata with proper description', async () => {
