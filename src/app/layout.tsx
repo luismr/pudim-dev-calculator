@@ -11,10 +11,29 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://pudim.dev'),
-  title: "pudim.dev 🍮 - Calculate Your Dev Pudim Score",
+  title: {
+    default: "pudim.dev 🍮 - Calculate Your Dev Pudim Score",
+    template: "%s | pudim.dev",
+  },
   description: "🍮 Calculate your Dev Pudim Score! Gamifies your GitHub profile with dessert-themed ranks from Legendary Flan to Underbaked. Check your developer flavor!",
-  keywords: ["GitHub", "developer", "stats", "pudim", "score", "ranking", "profile"],
+  keywords: ["GitHub", "developer", "stats", "pudim", "score", "ranking", "profile", "GitHub stats", "developer score", "open source", "GitHub profile", "developer ranking"],
   authors: [{ name: "pudim.dev" }],
+  creator: "pudim.dev",
+  publisher: "pudim.dev",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  alternates: {
+    canonical: "https://pudim.dev",
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -28,6 +47,7 @@ export const metadata: Metadata = {
         width: 1200,
         height: 630,
         alt: "pudim.dev - Dev Pudim Score Calculator",
+        type: "image/png",
       },
     ],
   },
@@ -36,7 +56,36 @@ export const metadata: Metadata = {
     title: "pudim.dev 🍮 - Calculate Your Dev Pudim Score",
     description: "🍮 Calculate your Dev Pudim Score! Gamifies your GitHub profile with dessert-themed ranks.",
     images: ["https://pudim.dev/opengraph-image"],
+    creator: "@pudimdev",
   },
+  category: "technology",
+};
+
+// Structured Data for SEO
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "pudim.dev",
+  "url": "https://pudim.dev",
+  "description": "Calculate your Dev Pudim Score! Gamifies your GitHub profile with dessert-themed ranks from Legendary Flan to Underbaked.",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "https://pudim.dev/calculator/{search_term_string}"
+    },
+    "query-input": "required name=search_term_string"
+  }
+};
+
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "pudim.dev",
+  "url": "https://pudim.dev",
+  "logo": "https://pudim.dev/opengraph-image",
+  "description": "A fun tool to calculate and share your GitHub developer score with dessert-themed rankings.",
+  "sameAs": []
 };
 
 export default function RootLayout({
@@ -49,6 +98,14 @@ export default function RootLayout({
       <body
         className={`${inter.variable} antialiased min-h-screen flex flex-col font-sans`}
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
         <Navbar />
         <div className="flex-1">
           {children}
