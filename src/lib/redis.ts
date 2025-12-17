@@ -194,11 +194,19 @@ async function getRedisClient(): Promise<RedisClient | null> {
 }
 
 /**
- * Get cache key for a GitHub username
+ * Get cache key for a GitHub username (stats data)
  */
 function getCacheKey(username: string): string {
   const prefix = process.env.REDIS_PREFIX || 'pudim:github:'
   return `${prefix}${username.toLowerCase()}`
+}
+
+/**
+ * Get cache key for a badge image
+ */
+function getBadgeCacheKey(username: string): string {
+  const prefix = process.env.REDIS_PREFIX || 'pudim:'
+  return `${prefix}badge:${username.toLowerCase()}`
 }
 
 /**
@@ -253,6 +261,68 @@ export async function setCachedStats(
     closeCircuitBreaker()
   } catch (error) {
     console.error('Error writing to Redis cache:', error)
+    // Open circuit breaker on write errors
+    openCircuitBreaker()
+    // Don't throw - caching failures shouldn't break the app
+  }
+}
+
+/**
+ * Get cached badge image
+ * Returns the image as a Buffer if found in cache
+ */
+export async function getCachedBadge(
+  username: string
+): Promise<Buffer | null> {
+  const client = await getRedisClient()
+  if (!client) {
+    return null
+  }
+
+  try {
+    const key = getBadgeCacheKey(username)
+    const cached = await client.get(key)
+    
+    if (cached) {
+      // Successfully read from cache, close circuit breaker if it was open
+      closeCircuitBreaker()
+      // Badge is stored as base64 string, convert back to Buffer
+      return Buffer.from(cached, 'base64')
+    }
+    
+    return null
+  } catch (error) {
+    console.error('Error reading badge from Redis cache:', error)
+    // Open circuit breaker on read errors
+    openCircuitBreaker()
+    return null
+  }
+}
+
+/**
+ * Set cached badge image with TTL
+ * Stores the image buffer as a base64 string
+ */
+export async function setCachedBadge(
+  username: string,
+  imageBuffer: Buffer
+): Promise<void> {
+  const client = await getRedisClient()
+  if (!client) {
+    return
+  }
+
+  try {
+    const key = getBadgeCacheKey(username)
+    // TTL in seconds, default to 5 minutes (300 seconds)
+    const ttl = parseInt(process.env.REDIS_TTL || '300', 10)
+    
+    // Store as base64 string to preserve binary data
+    await client.setex(key, ttl, imageBuffer.toString('base64'))
+    // Successfully wrote to cache, close circuit breaker if it was open
+    closeCircuitBreaker()
+  } catch (error) {
+    console.error('Error writing badge to Redis cache:', error)
     // Open circuit breaker on write errors
     openCircuitBreaker()
     // Don't throw - caching failures shouldn't break the app

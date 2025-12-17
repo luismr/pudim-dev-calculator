@@ -1,9 +1,12 @@
 import { ImageResponse } from 'next/og'
 import { getGithubStats } from '@/lib/pudim/github'
 import { calculatePudimScore } from '@/lib/pudim/score'
+import { getCachedBadge, setCachedBadge } from '@/lib/redis'
 import type { GitHubStats } from '@/lib/pudim/types'
 
-export const runtime = 'edge'
+// Use Node.js runtime to enable Redis caching (with circuit breaker fallback)
+// Edge runtime would skip Redis entirely since it doesn't support ioredis
+export const runtime = 'nodejs'
 
 // Map popular languages to colors
 const languageColors: Record<string, string> = {
@@ -45,12 +48,25 @@ export async function GET(
     const { username } = await params
     const decodedUsername = decodeURIComponent(username)
     
-    // Fetch GitHub stats
+    // Check if we have the full badge image cached in Redis
+    const cachedBadge = await getCachedBadge(decodedUsername)
+    if (cachedBadge) {
+      // Convert Buffer to Uint8Array for Response body
+      return new Response(new Uint8Array(cachedBadge), {
+        headers: {
+          'Content-Type': 'image/png',
+          'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
+          'CDN-Cache-Control': 'public, max-age=300',
+        },
+      })
+    }
+    
+    // Cache miss - fetch GitHub stats (these are also cached in Redis)
     const stats = await getGithubStats(decodedUsername)
     
     if ('error' in stats) {
-      // Return error badge
-      return new ImageResponse(
+      // Return error badge with shorter cache duration
+      const errorResponse = new ImageResponse(
         (
           <div
             style={{
@@ -85,6 +101,15 @@ export async function GET(
           height: 600,
         }
       )
+      
+      // Cache errors for shorter duration (60 seconds)
+      errorResponse.headers.set(
+        'Cache-Control',
+        'public, max-age=60, s-maxage=60, stale-while-revalidate=30'
+      )
+      errorResponse.headers.set('CDN-Cache-Control', 'public, max-age=60')
+      
+      return errorResponse
     }
 
     // Calculate score using server-side business rule
@@ -94,7 +119,8 @@ export async function GET(
     // Map Tailwind color class to hex for badge rendering
     const badgeColor = rankColorMap[rank.color] || rank.color
 
-    return new ImageResponse(
+    // Generate the badge image
+    const imageResponse = new ImageResponse(
       (
         <div
           style={{
@@ -301,9 +327,26 @@ export async function GET(
         height: 600,
       }
     )
+
+    // Cache the generated image in Redis (fire and forget)
+    // Convert ImageResponse to buffer for caching
+    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+    setCachedBadge(decodedUsername, imageBuffer).catch((error) => {
+      // Log but don't throw - caching failures shouldn't break the app
+      console.error('Failed to cache badge image:', error)
+    })
+
+    // Add cache headers for CDN and browser caching
+    imageResponse.headers.set(
+      'Cache-Control',
+      'public, max-age=300, s-maxage=300, stale-while-revalidate=60'
+    )
+    imageResponse.headers.set('CDN-Cache-Control', 'public, max-age=300')
+
+    return imageResponse
   } catch (error) {
     console.error('Badge generation error:', error)
-    return new ImageResponse(
+    const errorResponse = new ImageResponse(
       (
         <div
           style={{
@@ -337,6 +380,15 @@ export async function GET(
         height: 600,
       }
     )
+    
+    // Cache errors for shorter duration (60 seconds)
+    errorResponse.headers.set(
+      'Cache-Control',
+      'public, max-age=60, s-maxage=60, stale-while-revalidate=30'
+    )
+    errorResponse.headers.set('CDN-Cache-Control', 'public, max-age=60')
+    
+    return errorResponse
   }
 }
 
