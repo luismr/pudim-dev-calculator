@@ -115,9 +115,19 @@ jobs:
               exit 1
             fi
             
-            # Check if port is accessible
-            if curl -f http://localhost:8000/ > /dev/null 2>&1; then
-              echo "✓ DynamoDB is ready!"
+            # Check if DynamoDB is accessible (use ListTables API call for proper 200 response)
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/ \
+              -H "Content-Type: application/x-amz-json-1.0" \
+              -H "X-Amz-Target: DynamoDB_20120810.ListTables" \
+              -d '{}' 2>/dev/null || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✓ DynamoDB is ready! (HTTP $HTTP_CODE)"
+              docker ps --filter name=dynamodb
+              break
+            elif [ "$HTTP_CODE" = "400" ]; then
+              # 400 also means DynamoDB is running (invalid request format)
+              echo "✓ DynamoDB is responding! (HTTP $HTTP_CODE - service is up)"
               docker ps --filter name=dynamodb
               break
             fi
@@ -125,14 +135,21 @@ jobs:
             sleep 2
           done
           
-          # Final check
-          if ! curl -f http://localhost:8000/ > /dev/null 2>&1; then
-            echo "❌ DynamoDB failed to start"
+          # Final check with proper API call
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/ \
+            -H "Content-Type: application/x-amz-json-1.0" \
+            -H "X-Amz-Target: DynamoDB_20120810.ListTables" \
+            -d '{}' 2>/dev/null || echo "000")
+          
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "400" ]; then
+            echo "❌ DynamoDB failed to start (HTTP $HTTP_CODE)"
             echo "=== Container logs ==="
             docker logs dynamodb || true
             echo "=== Container inspect ==="
             docker inspect dynamodb || true
             exit 1
+          else
+            echo "✓ DynamoDB is ready! (HTTP $HTTP_CODE)"
           fi
       
       - name: Setup Node.js
