@@ -195,6 +195,117 @@ Want to level up your Pudim Score? Focus on:
 
 Remember: **The Pudim Score is just for fun!** 🍮 The real value is in the learning, building, and sharing that happens along the way.
 
+## ⚡ Redis Caching
+
+To improve performance and reduce GitHub API calls, pudim.dev includes optional Redis caching with fault-tolerant design.
+
+### Features
+
+- **🚀 Fast Response Times**: Cache GitHub stats for configurable TTL (default: 1 hour)
+- **🔄 Automatic Failover**: Circuit breaker pattern gracefully handles Redis failures
+- **🛡️ Fault Tolerant**: Application continues working even if Redis is unavailable
+- **⚙️ Configurable**: Environment variables for all cache settings
+- **🔌 Optional**: Disable caching entirely if not needed
+
+### Configuration
+
+Enable Redis caching via environment variables:
+
+```bash
+# Enable Redis caching
+REDIS_ENABLED=true
+
+# Redis connection
+REDIS_URL=redis://localhost:6379
+
+# Cache settings
+REDIS_PREFIX=pudim:           # Key prefix (default: pudim:)
+REDIS_TTL=3600               # TTL in seconds (default: 3600 = 1 hour)
+
+# Circuit breaker
+REDIS_CIRCUIT_BREAKER_COOLDOWN=60000  # Cooldown in ms (default: 60000 = 1 minute)
+```
+
+### How It Works
+
+1. **First Request**: Fetches data from GitHub API, stores in Redis
+2. **Cached Requests**: Returns data instantly from Redis (if within TTL)
+3. **Cache Miss**: Re-fetches from GitHub API, updates cache
+4. **Redis Failure**: Circuit breaker opens, falls back to direct GitHub API calls
+
+### Circuit Breaker Pattern
+
+The Redis client implements a circuit breaker for resilience:
+
+- **Closed State** (Normal): All cache operations work normally
+- **Open State** (Failure): Redis unavailable, all operations return `null`
+- **Cooldown Period**: After failure, waits 60s before retrying connection
+- **Auto Recovery**: Automatically closes circuit when Redis becomes available
+
+### Development Setup
+
+**Using Docker Compose (Recommended):**
+
+```bash
+# Start Redis
+docker-compose up redis -d
+
+# Start application with Redis enabled
+REDIS_ENABLED=true npm run dev
+```
+
+**Using Local Redis:**
+
+```bash
+# Install Redis
+brew install redis  # macOS
+apt-get install redis  # Ubuntu
+
+# Start Redis
+redis-server
+
+# Start application
+REDIS_ENABLED=true npm run dev
+```
+
+### Testing Redis
+
+```bash
+# Test cache is working
+curl http://localhost:3000/calculator/luismr  # First request (uncached)
+curl http://localhost:3000/calculator/luismr  # Second request (cached, faster)
+
+# Monitor Redis
+redis-cli monitor
+
+# Check cached keys
+redis-cli --scan --pattern "pudim:*"
+
+# Clear cache
+redis-cli FLUSHDB
+```
+
+### Production Considerations
+
+For production deployments:
+
+1. **Use Redis Sentinel** or **Redis Cluster** for high availability
+2. **Set appropriate TTL** based on your GitHub API rate limits
+3. **Monitor cache hit rates** using Redis INFO commands
+4. **Configure memory limits** in Redis (`maxmemory` policy)
+5. **Enable persistence** if needed (RDB or AOF)
+
+### Disabling Cache
+
+To disable caching completely:
+
+```bash
+# Set REDIS_ENABLED to false or omit it
+REDIS_ENABLED=false npm run dev
+```
+
+The application will work normally without Redis, always fetching fresh data from GitHub API.
+
 ## 💡 Inspiration
 
 This project is lovingly inspired by:
@@ -219,6 +330,18 @@ This project is built with modern web technologies:
 - **[Radix UI](https://www.radix-ui.com/)** - Unstyled, accessible UI primitives
 - **[Lucide React](https://lucide.dev/)** - Beautiful icon library
 
+### Testing & Quality
+- **[Vitest 4](https://vitest.dev/)** - Fast unit & integration test framework
+- **[React Testing Library](https://testing-library.com/react)** - Component testing utilities
+- **[@vitest/coverage-v8](https://vitest.dev/guide/coverage.html)** - Code coverage reporting
+- **[ioredis-mock](https://github.com/stipsan/ioredis-mock)** - Redis mocking for unit tests
+- **~90% Test Coverage** - Comprehensive test suite with unit and integration tests
+
+### Data & Caching
+- **[ioredis](https://github.com/redis/ioredis)** - Redis client for caching GitHub stats
+- **Redis 7** - In-memory cache with configurable TTL
+- **Circuit Breaker Pattern** - Fault-tolerant Redis connection handling
+
 ### Developer Experience
 - **[ESLint 9](https://eslint.org/)** - Code linting
 - **[PostCSS](https://postcss.org/)** - CSS processing
@@ -229,6 +352,7 @@ This project is built with modern web technologies:
 
 - Node.js 20+ (LTS recommended)
 - npm, yarn, pnpm, or bun
+- Redis 7+ (optional, for caching)
 
 ### Installation
 
@@ -251,23 +375,47 @@ pnpm install
 bun install
 ```
 
-3. **Run the development server**
+3. **(Optional) Start Redis for caching**
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Using Docker Compose (recommended)
+docker-compose up redis -d
+
+# Or install and start Redis locally
+brew install redis  # macOS
+redis-server
 ```
 
-4. **Open your browser**
+4. **Run the development server**
+
+```bash
+# Without Redis
+npm run dev
+
+# With Redis caching enabled
+REDIS_ENABLED=true npm run dev
+```
+
+5. **Open your browser**
 
 Navigate to [http://localhost:3000](http://localhost:3000) to see the app in action!
 
 The page will auto-reload when you make changes to the code.
+
+### Quick Start with Docker
+
+Alternatively, use Docker Compose to start everything at once:
+
+```bash
+# Start application + Redis
+docker-compose up -d
+
+# View logs
+docker-compose logs -f pudim-dev
+
+# Stop everything
+docker-compose down
+```
 
 ## 🏗️ Build for Production
 
@@ -294,12 +442,28 @@ This project uses GitHub Actions for continuous integration and deployment.
 Runs on every push and pull request to `main` and `develop` branches:
 - ✅ Installs dependencies
 - ✅ Runs ESLint
-- ✅ Executes all tests (50 tests)
-- ✅ Generates coverage reports
-- ✅ Posts coverage comment on PRs
+- ✅ Executes unit tests (142 tests with mocked dependencies)
+- ✅ Executes integration tests (17 tests with real Redis)
+- ✅ Generates separate coverage reports for each test suite
+- ✅ Posts coverage table on PRs showing unit vs integration coverage
 - ✅ Uploads coverage to Codecov
 - ✅ Builds Next.js application
 - ✅ Uploads build artifacts
+
+**Coverage Table Format on PRs:**
+
+```markdown
+## 📊 Test Coverage Report
+
+| Suite | Lines | Statements | Branches | Functions |
+|-------|-------|------------|----------|-----------|
+| **Unit Tests** | 89.1% | 89.16% | 84.15% | 90.24% |
+| **Integration Tests** | 84.31% | 84.31% | 82.35% | 93.75% |
+
+> 📝 Unit tests exclude integration tests and run with mocked dependencies.
+> 
+> 🔧 Integration tests verify Redis functionality with a real Redis instance.
+```
 
 **2. Docker Build & Push** (`.github/workflows/docker.yml`)
 
@@ -406,8 +570,10 @@ docker run -d \
 
 **Option 2: Using Docker Compose (Recommended)**
 
+Docker Compose includes Redis caching for improved performance:
+
 ```bash
-# Start the application
+# Start the application with Redis
 docker-compose up -d
 
 # View logs
@@ -416,6 +582,10 @@ docker-compose logs -f
 # Stop the application
 docker-compose down
 ```
+
+The `docker-compose.yml` includes:
+- **pudim-dev** - Next.js application on port 3000
+- **redis** - Redis 7 Alpine for caching (optional, only used if `REDIS_ENABLED=true`)
 
 ### Accessing the Application
 
@@ -458,14 +628,22 @@ The Docker image supports the following environment variables:
 | `PORT` | `3000` | Application port |
 | `HOSTNAME` | `0.0.0.0` | Bind address |
 | `NEXT_TELEMETRY_DISABLED` | `1` | Disable Next.js telemetry |
+| `REDIS_ENABLED` | `false` | Enable Redis caching |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection URL |
+| `REDIS_PREFIX` | `pudim:` | Redis key prefix |
+| `REDIS_TTL` | `3600` | Cache TTL in seconds (1 hour) |
+| `REDIS_CIRCUIT_BREAKER_COOLDOWN` | `60000` | Circuit breaker cooldown in ms |
 
-Example with custom environment variables:
+Example with Redis enabled:
 
 ```bash
 docker run -d \
   --name pudim-dev \
-  -p 8080:3000 \
-  -e PORT=3000 \
+  -p 3000:3000 \
+  -e REDIS_ENABLED=true \
+  -e REDIS_URL=redis://redis:6379 \
+  -e REDIS_TTL=3600 \
+  --link redis:redis \
   pudim-dev:latest
 ```
 
@@ -523,32 +701,107 @@ For production deployments, consider:
 
 ## 🧪 Testing
 
-This project uses [Vitest](https://vitest.dev/) and [React Testing Library](https://testing-library.com/react) for comprehensive unit testing.
+This project uses [Vitest](https://vitest.dev/) and [React Testing Library](https://testing-library.com/react) for comprehensive unit and integration testing.
 
 ### Running Tests
 
 ```bash
-# Run tests in watch mode
+# Run all tests in watch mode
 npm test
 
-# Run tests once
+# Run all tests once
 npm run test:run
 
-# Run tests with coverage report
-npm run test:coverage
+# Run unit tests only (with coverage)
+npm run test:unit
+
+# Run integration tests only (requires Redis)
+npm run test:integration
 
 # Run tests with UI (interactive)
 npm run test:ui
 ```
 
+### Test Structure
+
+The project separates unit and integration tests for better organization:
+
+**Unit Tests** (`npm run test:unit`)
+- Uses mocked dependencies (ioredis-mock for Redis)
+- Fast execution, no external services required
+- Tests business logic, components, and utilities in isolation
+- **142 tests** across 17 test files
+- **Coverage: ~89% lines, ~84% branches**
+
+**Integration Tests** (`npm run test:integration`)
+- Uses real Redis instance for testing caching behavior
+- Tests Redis connection, circuit breaker, and cache operations
+- Requires Redis running (Docker Compose or local instance)
+- **17 tests** in 1 test file (`redis.test.ts`)
+- **Coverage: ~84% lines, ~82% branches**
+
+### Setting Up Integration Tests
+
+Integration tests require a running Redis instance:
+
+**Option 1: Using Docker Compose (Recommended)**
+```bash
+# Start Redis
+docker-compose up redis -d
+
+# Run integration tests
+npm run test:integration
+
+# Stop Redis
+docker-compose down
+```
+
+**Option 2: Local Redis**
+```bash
+# Install Redis (macOS)
+brew install redis
+
+# Start Redis
+redis-server
+
+# Run integration tests
+npm run test:integration
+```
+
+**Option 3: Using Environment Variables**
+```bash
+# Configure Redis connection
+export REDIS_ENABLED=true
+export REDIS_URL=redis://localhost:6379
+export REDIS_PREFIX=test:
+export REDIS_TTL=300
+
+# Run integration tests
+npm run test:integration
+```
+
 ### Test Coverage
 
-The test suite covers:
+**Current Coverage Summary:**
+
+| Suite | Lines | Statements | Branches | Functions |
+|-------|-------|------------|----------|-----------|
+| **Unit Tests** | ~89% | ~89% | ~84% | ~90% |
+| **Integration Tests** | ~84% | ~84% | ~82% | ~94% |
+
+The comprehensive test suite covers:
 - ✅ **Components**: Navbar, Footer, PudimScore (with full user interactions)
 - ✅ **Pages**: Home page, Calculator page
 - ✅ **API Routes**: Health check endpoint
-- ✅ **Actions**: GitHub stats fetching with various scenarios
+- ✅ **Server Actions**: GitHub stats fetching and score calculation
+- ✅ **Business Logic**: Score calculation algorithm with all rank thresholds
+- ✅ **GitHub Integration**: User data fetching, error handling, language analysis
+- ✅ **UI Components**: Card, Dialog, Sheet components
 - ✅ **Utilities**: Class name merging utility
+- ✅ **Redis Caching**: Connection handling, circuit breaker, cache operations
+- ✅ **Edge Cases**: Runtime detection, error handling, fault tolerance
+
+**Total: 159 tests across 18 test files**
 
 ### Writing Tests
 
@@ -559,18 +812,39 @@ src/
 ├── components/
 │   ├── __tests__/
 │   │   ├── Navbar.test.tsx
+│   │   ├── Navbar.mobile.test.tsx
 │   │   ├── Footer.test.tsx
-│   │   └── PudimScore.test.tsx
+│   │   ├── PudimScore.test.tsx
+│   │   └── PudimScore.ranks.test.tsx
+│   ├── ui/
+│   │   ├── __tests__/
+│   │   │   ├── card.test.tsx
+│   │   │   ├── dialog.test.tsx
+│   │   │   └── sheet.test.tsx
+│   │   └── ...
 │   └── ...
 ├── app/
 │   ├── __tests__/
-│   │   ├── page.test.tsx
-│   │   └── actions.test.ts
+│   │   └── page.test.tsx
+│   ├── _server/
+│   │   ├── __tests__/
+│   │   │   └── actions.test.ts
+│   │   └── actions.ts
 │   └── ...
 └── lib/
     ├── __tests__/
-    │   └── utils.test.ts
-    └── ...
+    │   ├── utils.test.ts
+    │   ├── redis.unit.test.ts     # Unit tests with mocks
+    │   └── redis.test.ts          # Integration tests with real Redis
+    ├── pudim/
+    │   ├── __tests__/
+    │   │   ├── github.test.ts
+    │   │   └── score.test.ts
+    │   ├── github.ts
+    │   ├── score.ts
+    │   ├── types.ts
+    │   └── index.ts
+    └── redis.ts                    # Redis caching module
 ```
 
 ### Test Configuration
@@ -578,7 +852,23 @@ src/
 - **Framework**: Vitest with jsdom environment
 - **React Testing**: @testing-library/react
 - **Assertions**: @testing-library/jest-dom matchers
+- **Mocking**: vi.mock for dependency isolation
+- **Redis Mocking**: ioredis-mock for unit tests
 - **Configuration**: `vitest.config.ts`
+
+### Test Separation Strategy
+
+**Unit Tests:**
+- File pattern: `**/*.test.ts(x)` (excluding `redis.test.ts`)
+- Uses mocked dependencies
+- Fast execution
+- No external services required
+
+**Integration Tests:**
+- File pattern: `src/lib/__tests__/redis.test.ts`
+- Uses real Redis service
+- Tests end-to-end functionality
+- Requires Redis running on `redis://localhost:6379`
 
 ## 🤝 Contributing
 
@@ -650,6 +940,59 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - Provide constructive feedback
 - Focus on what is best for the community
 
+## 🏗️ Architecture
+
+### Code Organization
+
+The project follows a clean, organized structure with clear separation of concerns:
+
+- **`app/_server/`** - Server-side code (Next.js private route group)
+  - Server actions for GitHub API integration
+  - All business logic centralized on the server
+
+- **`lib/pudim/`** - Business logic module
+  - `github.ts` - GitHub API client with Redis caching integration
+  - `score.ts` - Score calculation algorithm
+  - `types.ts` - Shared TypeScript types
+  - `index.ts` - Barrel exports
+
+- **`lib/redis.ts`** - Redis caching layer
+  - Circuit breaker pattern for fault tolerance
+  - Automatic failover to direct API calls
+  - Configurable TTL and connection settings
+
+- **`components/`** - React components
+  - UI components in `components/ui/`
+  - Feature components at root level
+  - Tests co-located in `__tests__/` directories
+
+- **`app/`** - Next.js App Router
+  - Route handlers and pages
+  - API routes
+  - Special files (metadata, icons, etc.)
+
+### Data Flow
+
+```
+User Request
+    ↓
+Next.js Server Action (app/_server/actions.ts)
+    ↓
+GitHub API Client (lib/pudim/github.ts)
+    ↓
+    ├─→ Redis Cache Check (lib/redis.ts)
+    │   ├─→ Cache Hit: Return cached data
+    │   └─→ Cache Miss: Continue to GitHub API
+    ↓
+GitHub API (if cache miss or Redis unavailable)
+    ↓
+Store in Redis (if enabled)
+    ↓
+Score Calculation (lib/pudim/score.ts)
+    ↓
+Return to Client
+```
+
 ## 📝 Project Structure
 
 ```
@@ -657,20 +1000,44 @@ pudim.dev/
 ├── public/                      # Static assets
 ├── src/
 │   ├── app/                     # Next.js App Router
+│   │   ├── _server/             # Server-side code (private route group)
+│   │   │   ├── __tests__/
+│   │   │   │   └── actions.test.ts
+│   │   │   └── actions.ts       # Server actions (GitHub API calls)
 │   │   ├── api/
 │   │   │   └── health/
+│   │   │       ├── __tests__/
+│   │   │       │   └── route.test.ts
 │   │   │       └── route.ts     # Health check endpoint
 │   │   ├── badge/
 │   │   │   └── [username]/
 │   │   │       └── route.tsx    # Badge image generation
 │   │   ├── calculator/
 │   │   │   └── [username]/
+│   │   │       ├── __tests__/
+│   │   │       │   ├── metadata.test.ts
+│   │   │       │   └── page.test.tsx
 │   │   │       └── page.tsx     # Direct calculator page
-│   │   ├── actions.ts           # Server actions (GitHub API calls)
+│   │   ├── __tests__/
+│   │   │   └── page.test.tsx
 │   │   ├── layout.tsx           # Root layout
-│   │   └── page.tsx             # Home page
+│   │   ├── page.tsx             # Home page
+│   │   ├── icon.tsx             # App icon
+│   │   ├── opengraph-image.tsx  # OG image generation
+│   │   ├── robots.ts            # Robots.txt
+│   │   └── sitemap.ts           # Sitemap generation
 │   ├── components/              # React components
+│   │   ├── __tests__/           # Component tests
+│   │   │   ├── Footer.test.tsx
+│   │   │   ├── Navbar.test.tsx
+│   │   │   ├── Navbar.mobile.test.tsx
+│   │   │   ├── PudimScore.test.tsx
+│   │   │   └── PudimScore.ranks.test.tsx
 │   │   ├── ui/                  # shadcn/ui components
+│   │   │   ├── __tests__/       # UI component tests
+│   │   │   │   ├── card.test.tsx
+│   │   │   │   ├── dialog.test.tsx
+│   │   │   │   └── sheet.test.tsx
 │   │   │   ├── avatar.tsx
 │   │   │   ├── badge.tsx
 │   │   │   ├── button.tsx
@@ -683,14 +1050,30 @@ pudim.dev/
 │   │   ├── Footer.tsx
 │   │   ├── Navbar.tsx
 │   │   └── PudimScore.tsx       # Main calculator component
-│   └── lib/                     # Utilities
-│       └── utils.ts
+│   └── lib/                     # Utilities and business logic
+│       ├── __tests__/
+│       │   ├── utils.test.ts
+│       │   ├── redis.unit.test.ts   # Redis unit tests (mocked)
+│       │   └── redis.test.ts        # Redis integration tests
+│       ├── pudim/               # Pudim score business logic
+│       │   ├── __tests__/
+│       │   │   ├── github.test.ts
+│       │   │   └── score.test.ts
+│       │   ├── github.ts        # GitHub API integration
+│       │   ├── score.ts         # Score calculation algorithm
+│       │   ├── types.ts         # TypeScript type definitions
+│       │   └── index.ts         # Barrel exports
+│       ├── redis.ts             # Redis caching with circuit breaker
+│       └── utils.ts             # Utility functions
 ├── .dockerignore                # Docker ignore patterns
 ├── Dockerfile                   # Docker production build
 ├── docker-compose.yml           # Docker Compose configuration
+├── eslint.config.mjs            # ESLint configuration
 ├── next.config.ts               # Next.js configuration
-├── package.json                 # Dependencies
-└── tsconfig.json                # TypeScript config
+├── package.json                 # Dependencies (v0.2.0)
+├── postcss.config.mjs           # PostCSS configuration
+├── tsconfig.json                # TypeScript config
+└── vitest.config.ts             # Vitest test configuration
 ```
 
 ## 📄 License

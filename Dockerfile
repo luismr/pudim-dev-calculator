@@ -38,6 +38,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# Redis Configuration (optional, can be overridden at runtime)
+ENV REDIS_ENABLED="false"
+ENV REDIS_URL="redis://localhost:6379"
+ENV REDIS_PREFIX="pudim:"
+ENV REDIS_TTL="3600"
+ENV REDIS_CIRCUIT_BREAKER_COOLDOWN="60000"
+
 # Create nextjs user for security
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

@@ -16,6 +16,17 @@ jobs:
       checks: write
       issues: write
     
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
     strategy:
       matrix:
         node-version: [20.x]
@@ -36,43 +47,73 @@ jobs:
       - name: Run linter
         run: npm run lint
       
-      - name: Run tests
-        run: npm run test:run
+      - name: Run unit tests
+        run: npm run test:unit
       
-      - name: Generate coverage report
-        run: npm run test:coverage
+      - name: Save unit test coverage
+        run: |
+          mkdir -p coverage-reports
+          cp coverage/coverage-summary.json coverage-reports/unit-coverage.json
+          cp coverage/cobertura-coverage.xml coverage-reports/unit-cobertura.xml
+      
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          REDIS_ENABLED: 'true'
+          REDIS_URL: 'redis://localhost:6379'
+          REDIS_PREFIX: 'test:'
+          REDIS_TTL: '300'
+      
+      - name: Save integration test coverage
+        run: |
+          cp coverage/coverage-summary.json coverage-reports/integration-coverage.json
+          cp coverage/cobertura-coverage.xml coverage-reports/integration-cobertura.xml
+      
+      - name: Generate combined coverage report
+        run: |
+          # Extract coverage metrics
+          UNIT_LINES=$(jq '.total.lines.pct' coverage-reports/unit-coverage.json)
+          UNIT_STMTS=$(jq '.total.statements.pct' coverage-reports/unit-coverage.json)
+          UNIT_BRANCHES=$(jq '.total.branches.pct' coverage-reports/unit-coverage.json)
+          UNIT_FUNCS=$(jq '.total.functions.pct' coverage-reports/unit-coverage.json)
+          
+          INT_LINES=$(jq '.total.lines.pct' coverage-reports/integration-coverage.json)
+          INT_STMTS=$(jq '.total.statements.pct' coverage-reports/integration-coverage.json)
+          INT_BRANCHES=$(jq '.total.branches.pct' coverage-reports/integration-coverage.json)
+          INT_FUNCS=$(jq '.total.functions.pct' coverage-reports/integration-coverage.json)
+          
+          # Create coverage table
+          cat > coverage-table.md << EOF
+          ## 📊 Test Coverage Report
+          
+          | Suite | Lines | Statements | Branches | Functions |
+          |-------|-------|------------|----------|-----------|
+          | **Unit Tests** | ${UNIT_LINES}% | ${UNIT_STMTS}% | ${UNIT_BRANCHES}% | ${UNIT_FUNCS}% |
+          | **Integration Tests** | ${INT_LINES}% | ${INT_STMTS}% | ${INT_BRANCHES}% | ${INT_FUNCS}% |
+          
+          > 📝 Unit tests exclude integration tests and run with mocked dependencies.
+          > 
+          > 🔧 Integration tests verify Redis functionality with a real Redis instance.
+          EOF
       
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage/coverage-final.json
-          flags: unittests
+          files: ./coverage-reports/unit-cobertura.xml,./coverage-reports/integration-cobertura.xml
+          flags: unittests,integrationtests
           name: codecov-umbrella
           fail_ci_if_error: false
-      
-      - name: Coverage Report Summary
-        uses: irongut/CodeCoverageSummary@v1.3.0
-        with:
-          filename: coverage/cobertura-coverage.xml
-          badge: true
-          fail_below_min: false
-          format: markdown
-          hide_branch_rate: false
-          hide_complexity: true
-          indicators: true
-          output: both
-          thresholds: '60 80'
       
       - name: Add Coverage PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
         if: github.event_name == 'pull_request'
         with:
           recreate: true
-          path: code-coverage-results.md
+          path: coverage-table.md
       
       - name: Write coverage to Job Summary
-        run: cat code-coverage-results.md >> $GITHUB_STEP_SUMMARY
+        run: cat coverage-table.md >> $GITHUB_STEP_SUMMARY
       
       - name: Build Next.js application
         run: npm run build

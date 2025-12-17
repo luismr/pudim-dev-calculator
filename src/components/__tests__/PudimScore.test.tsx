@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PudimScore } from '../PudimScore'
-import { getGithubStats } from '@/app/actions'
+import { getPudimScore } from '@/app/_server/actions'
 
 // Mock the server action
-vi.mock('@/app/actions', () => ({
-  getGithubStats: vi.fn(),
+vi.mock('@/app/_server/actions', () => ({
+  getPudimScore: vi.fn(),
 }))
 
 describe('PudimScore', () => {
@@ -30,7 +30,7 @@ describe('PudimScore', () => {
 
   it('disables button and input while loading', async () => {
     const user = userEvent.setup()
-    vi.mocked(getGithubStats).mockImplementation(() => 
+    vi.mocked(getPudimScore).mockImplementation(() => 
       new Promise(resolve => setTimeout(() => resolve({ error: 'Not found' }), 100))
     )
 
@@ -48,7 +48,7 @@ describe('PudimScore', () => {
 
   it('displays error message when user is not found', async () => {
     const user = userEvent.setup()
-    vi.mocked(getGithubStats).mockResolvedValue({
+    vi.mocked(getPudimScore).mockResolvedValue({
       error: 'User not found',
     })
 
@@ -67,20 +67,30 @@ describe('PudimScore', () => {
 
   it('displays user stats when successful', async () => {
     const user = userEvent.setup()
-    const mockStats = {
-      username: 'testuser',
-      avatar_url: 'https://example.com/avatar.jpg',
-      created_at: '2012-01-01T00:00:00Z',
-      total_stars: 222,
-      followers: 87,
-      public_repos: 96,
-      languages: [
-        { name: 'Java', percentage: 39 },
-        { name: 'Python', percentage: 18 },
-      ],
+    const mockResult = {
+      stats: {
+        username: 'testuser',
+        avatar_url: 'https://example.com/avatar.jpg',
+        created_at: '2012-01-01T00:00:00Z',
+        total_stars: 222,
+        followers: 87,
+        public_repos: 96,
+        languages: [
+          { name: 'Java', count: 39, percentage: 39 },
+          { name: 'Python', count: 18, percentage: 18 },
+        ],
+      },
+      score: 583.5,
+      rank: {
+        rank: 'S',
+        title: 'Master Pudim',
+        description: 'A delicious result. Michelin star worthy.',
+        emoji: '🍮',
+        color: 'text-yellow-600',
+      },
     }
 
-    vi.mocked(getGithubStats).mockResolvedValue(mockStats)
+    vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
     render(<PudimScore />)
     
@@ -103,18 +113,28 @@ describe('PudimScore', () => {
 
   it('displays correct rank for high score (Master Pudim)', async () => {
     const user = userEvent.setup()
-    const mockStats = {
-      username: 'highscorer',
-      avatar_url: 'https://example.com/avatar.jpg',
-      created_at: '2012-01-01T00:00:00Z',
-      total_stars: 222, // 222 * 2 = 444
-      followers: 87,    // 87 * 0.5 = 43.5
-      public_repos: 96, // 96 * 1 = 96
-      // Total score: 444 + 43.5 + 96 = 583.5 (S rank - Master Pudim)
-      languages: [],
+    const mockResult = {
+      stats: {
+        username: 'highscorer',
+        avatar_url: 'https://example.com/avatar.jpg',
+        created_at: '2012-01-01T00:00:00Z',
+        total_stars: 222, // 222 * 2 = 444
+        followers: 87,    // 87 * 0.5 = 43.5
+        public_repos: 96, // 96 * 1 = 96
+        // Total score: 444 + 43.5 + 96 = 583.5 (S rank - Master Pudim)
+        languages: [],
+      },
+      score: 583.5,
+      rank: {
+        rank: 'S',
+        title: 'Master Pudim',
+        description: 'A delicious result. Michelin star worthy.',
+        emoji: '🍮',
+        color: 'text-yellow-600',
+      },
     }
 
-    vi.mocked(getGithubStats).mockResolvedValue(mockStats)
+    vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
     render(<PudimScore />)
     
@@ -131,17 +151,27 @@ describe('PudimScore', () => {
   })
 
   it('loads initial username when provided', async () => {
-    const mockStats = {
-      username: 'initialuser',
-      avatar_url: 'https://example.com/avatar.jpg',
-      created_at: '2012-01-01T00:00:00Z',
-      total_stars: 100,
-      followers: 50,
-      public_repos: 25,
-      languages: [],
+    const mockResult = {
+      stats: {
+        username: 'initialuser',
+        avatar_url: 'https://example.com/avatar.jpg',
+        created_at: '2012-01-01T00:00:00Z',
+        total_stars: 100,
+        followers: 50,
+        public_repos: 25,
+        languages: [],
+      },
+      score: 275,
+      rank: {
+        rank: 'A',
+        title: 'Tasty Pudding',
+        description: 'Everyone wants a slice. Great job!',
+        emoji: '😋',
+        color: 'text-orange-500',
+      },
     }
 
-    vi.mocked(getGithubStats).mockResolvedValue(mockStats)
+    vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
     render(<PudimScore initialUsername="initialuser" />)
 
@@ -152,21 +182,31 @@ describe('PudimScore', () => {
 
   it('displays languages when available', async () => {
     const user = userEvent.setup()
-    const mockStats = {
-      username: 'languageuser',
-      avatar_url: 'https://example.com/avatar.jpg',
-      created_at: '2012-01-01T00:00:00Z',
-      total_stars: 100,
-      followers: 50,
-      public_repos: 25,
-      languages: [
-        { name: 'TypeScript', percentage: 50 },
-        { name: 'JavaScript', percentage: 30 },
-        { name: 'Python', percentage: 20 },
-      ],
+    const mockResult = {
+      stats: {
+        username: 'languageuser',
+        avatar_url: 'https://example.com/avatar.jpg',
+        created_at: '2012-01-01T00:00:00Z',
+        total_stars: 100,
+        followers: 50,
+        public_repos: 25,
+        languages: [
+          { name: 'TypeScript', count: 50, percentage: 50 },
+          { name: 'JavaScript', count: 30, percentage: 30 },
+          { name: 'Python', count: 20, percentage: 20 },
+        ],
+      },
+      score: 275,
+      rank: {
+        rank: 'A',
+        title: 'Tasty Pudding',
+        description: 'Everyone wants a slice. Great job!',
+        emoji: '😋',
+        color: 'text-orange-500',
+      },
     }
 
-    vi.mocked(getGithubStats).mockResolvedValue(mockStats)
+    vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
     render(<PudimScore />)
     
@@ -186,17 +226,27 @@ describe('PudimScore', () => {
 
   it('shows rank info button when results are displayed', async () => {
     const user = userEvent.setup()
-    const mockStats = {
-      username: 'testuser',
-      avatar_url: 'https://example.com/avatar.jpg',
-      created_at: '2012-01-01T00:00:00Z',
-      total_stars: 100,
-      followers: 50,
-      public_repos: 25,
-      languages: [],
+    const mockResult = {
+      stats: {
+        username: 'testuser',
+        avatar_url: 'https://example.com/avatar.jpg',
+        created_at: '2012-01-01T00:00:00Z',
+        total_stars: 100,
+        followers: 50,
+        public_repos: 25,
+        languages: [],
+      },
+      score: 275,
+      rank: {
+        rank: 'A',
+        title: 'Tasty Pudding',
+        description: 'Everyone wants a slice. Great job!',
+        emoji: '😋',
+        color: 'text-orange-500',
+      },
     }
 
-    vi.mocked(getGithubStats).mockResolvedValue(mockStats)
+    vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
     render(<PudimScore />)
     
@@ -209,6 +259,101 @@ describe('PudimScore', () => {
     await waitFor(() => {
       const infoButton = screen.getByTitle('View ranking thresholds')
       expect(infoButton).toBeInTheDocument()
+    })
+  })
+
+  it('handles unexpected errors in catch block', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPudimScore).mockRejectedValue(new Error('Unexpected error'))
+
+    render(<PudimScore />)
+    
+    const input = screen.getByPlaceholderText('GitHub Username')
+    const button = screen.getByRole('button', { name: /Calculate/i })
+
+    await user.type(input, 'testuser')
+    await user.click(button)
+
+    await waitFor(() => {
+      expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument()
+    })
+  })
+
+  it('does not load stats when username is empty or whitespace', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPudimScore).mockResolvedValue({
+      stats: {
+        username: 'testuser',
+        avatar_url: 'https://example.com/avatar.jpg',
+        created_at: '2012-01-01T00:00:00Z',
+        total_stars: 100,
+        followers: 50,
+        public_repos: 25,
+        languages: [],
+      },
+      score: 275,
+      rank: {
+        rank: 'A',
+        title: 'Tasty Pudding',
+        description: 'Everyone wants a slice. Great job!',
+        emoji: '😋',
+        color: 'text-orange-500',
+      },
+    })
+
+    render(<PudimScore />)
+    
+    const input = screen.getByPlaceholderText('GitHub Username')
+    const button = screen.getByRole('button', { name: /Calculate/i })
+
+    // Try with empty string
+    await user.click(button)
+    
+    // Try with whitespace
+    await user.type(input, '   ')
+    await user.click(button)
+
+    // Should not have called getPudimScore
+    expect(getPudimScore).not.toHaveBeenCalled()
+  })
+
+  it('displays languages with fallback color when language not in map', async () => {
+    const user = userEvent.setup()
+    const mockResult = {
+      stats: {
+        username: 'testuser',
+        avatar_url: 'https://example.com/avatar.jpg',
+        created_at: '2012-01-01T00:00:00Z',
+        total_stars: 100,
+        followers: 50,
+        public_repos: 25,
+        languages: [
+          { name: 'UnknownLanguage', count: 1, percentage: 100 },
+        ],
+      },
+      score: 275,
+      rank: {
+        rank: 'A',
+        title: 'Tasty Pudding',
+        description: 'Everyone wants a slice. Great job!',
+        emoji: '😋',
+        color: 'text-orange-500',
+      },
+    }
+
+    vi.mocked(getPudimScore).mockResolvedValue(mockResult)
+
+    render(<PudimScore />)
+    
+    const input = screen.getByPlaceholderText('GitHub Username')
+    const button = screen.getByRole('button', { name: /Calculate/i })
+
+    await user.type(input, 'testuser')
+    await user.click(button)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Pudim Flavors/i)).toBeInTheDocument()
+      expect(screen.getByText(/UnknownLanguage/i)).toBeInTheDocument()
     })
   })
 })

@@ -1,12 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getGithubStats } from '../actions'
+import { getGithubStats } from '../github'
 
 // Mock global fetch
 global.fetch = vi.fn()
 
+// Mock Redis cache
+vi.mock('@/lib/redis', () => ({
+  getCachedStats: vi.fn(),
+  setCachedStats: vi.fn(),
+}))
+
 describe('getGithubStats', () => {
-  beforeEach(() => {
+  let getCachedStats: ReturnType<typeof vi.fn>
+  let setCachedStats: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
     vi.clearAllMocks()
+    const redisModule = await import('@/lib/redis')
+    getCachedStats = vi.mocked(redisModule.getCachedStats)
+    setCachedStats = vi.mocked(redisModule.setCachedStats)
+    
+    // Default: no cache hit
+    getCachedStats.mockResolvedValue(null)
+    // Default: cache set succeeds
+    setCachedStats.mockResolvedValue(undefined)
   })
 
   it('fetches user data successfully', async () => {
@@ -16,6 +33,7 @@ describe('getGithubStats', () => {
       created_at: '2012-01-01T00:00:00Z',
       followers: 100,
       public_repos: 50,
+      repos_url: 'https://api.github.com/users/testuser/repos',
     }
 
     const mockReposData = [
@@ -66,6 +84,19 @@ describe('getGithubStats', () => {
     })
   })
 
+  it('returns error when user fetch fails with non-404 status', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+    } as Response)
+
+    const result = await getGithubStats('testuser')
+
+    expect(result).toEqual({
+      error: 'Failed to fetch user data',
+    })
+  })
+
   it('returns error when API fails', async () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'))
 
@@ -83,6 +114,7 @@ describe('getGithubStats', () => {
       created_at: '2012-01-01T00:00:00Z',
       followers: 100,
       public_repos: 4,
+      repos_url: 'https://api.github.com/users/testuser/repos',
     }
 
     const mockReposData = [
@@ -122,6 +154,7 @@ describe('getGithubStats', () => {
       created_at: '2012-01-01T00:00:00Z',
       followers: 100,
       public_repos: 2,
+      repos_url: 'https://api.github.com/users/testuser/repos',
     }
 
     const mockReposData = [
@@ -155,6 +188,7 @@ describe('getGithubStats', () => {
       created_at: '2012-01-01T00:00:00Z',
       followers: 100,
       public_repos: 3,
+      repos_url: 'https://api.github.com/users/testuser/repos',
     }
 
     const mockReposData = [
@@ -176,6 +210,137 @@ describe('getGithubStats', () => {
     const result = await getGithubStats('testuser')
 
     expect(result.total_stars).toBe(175)
+  })
+
+  it('handles repos response failure gracefully', async () => {
+    const mockUserData = {
+      login: 'testuser',
+      avatar_url: 'https://example.com/avatar.jpg',
+      created_at: '2012-01-01T00:00:00Z',
+      followers: 100,
+      public_repos: 50,
+      repos_url: 'https://api.github.com/users/testuser/repos',
+    }
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockUserData,
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => [],
+      } as Response)
+
+    const result = await getGithubStats('testuser')
+
+    expect(result).toMatchObject({
+      username: 'testuser',
+      total_stars: 0,
+    })
+    expect(result.languages).toEqual([])
+  })
+
+  it('returns cached stats when available', async () => {
+    const cachedStats = {
+      username: 'cacheduser',
+      avatar_url: 'https://example.com/cached.jpg',
+      followers: 200,
+      total_stars: 100,
+      public_repos: 20,
+      created_at: '2010-01-01T00:00:00Z',
+      languages: [{ name: 'JavaScript', count: 10, percentage: 100 }],
+    }
+
+    vi.mocked(getCachedStats).mockResolvedValueOnce(cachedStats)
+
+    const result = await getGithubStats('cacheduser')
+
+    expect(result).toEqual(cachedStats)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(setCachedStats).not.toHaveBeenCalled()
+  })
+
+  it('caches stats after fetching from GitHub', async () => {
+    const mockUserData = {
+      login: 'testuser',
+      avatar_url: 'https://example.com/avatar.jpg',
+      created_at: '2012-01-01T00:00:00Z',
+      followers: 100,
+      public_repos: 50,
+      repos_url: 'https://api.github.com/users/testuser/repos',
+    }
+
+    const mockReposData = [
+      {
+        stargazers_count: 10,
+        language: 'JavaScript',
+        size: 100,
+      },
+    ]
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockUserData,
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockReposData,
+      } as Response)
+
+    const result = await getGithubStats('testuser')
+
+    expect(result).toMatchObject({
+      username: 'testuser',
+    })
+    expect(setCachedStats).toHaveBeenCalledWith('testuser', expect.objectContaining({
+      username: 'testuser',
+      followers: 100,
+      total_stars: 10,
+    }))
+  })
+
+  it('handles cache write failures gracefully', async () => {
+    const mockUserData = {
+      login: 'testuser',
+      avatar_url: 'https://example.com/avatar.jpg',
+      created_at: '2012-01-01T00:00:00Z',
+      followers: 100,
+      public_repos: 50,
+      repos_url: 'https://api.github.com/users/testuser/repos',
+    }
+
+    const mockReposData = [
+      {
+        stargazers_count: 10,
+        language: 'JavaScript',
+        size: 100,
+      },
+    ]
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(setCachedStats).mockRejectedValueOnce(new Error('Cache write failed'))
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockUserData,
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockReposData,
+      } as Response)
+
+    const result = await getGithubStats('testuser')
+
+    // Should still return the stats even if caching fails
+    expect(result).toMatchObject({
+      username: 'testuser',
+    })
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to cache GitHub stats:', expect.any(Error))
+    
+    consoleErrorSpy.mockRestore()
   })
 })
 

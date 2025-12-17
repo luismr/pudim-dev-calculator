@@ -1,5 +1,7 @@
 import { ImageResponse } from 'next/og'
-import { getGithubStats } from '@/app/actions'
+import { getGithubStats } from '@/lib/pudim/github'
+import { calculatePudimScore } from '@/lib/pudim/score'
+import type { GitHubStats } from '@/lib/pudim/types'
 
 export const runtime = 'edge'
 
@@ -25,44 +27,14 @@ const languageColors: Record<string, string> = {
   Solidity: "#aa6746",
 }
 
-type PudimRank = {
-  rank: string
-  title: string
-  description: string
-  emoji: string
-  color: string
-}
-
-type GitHubStats = {
-  username: string
-  avatar_url: string
-  followers: number
-  total_stars: number
-  public_repos: number
-  created_at: string
-  languages?: Array<{ name: string; percentage: number }>
-}
-
-function calculatePudimScore(stats: GitHubStats): { score: number; rank: PudimRank } {
-  const score = (stats.followers * 0.5) + (stats.total_stars * 2) + (stats.public_repos * 1)
-  
-  let rank: PudimRank
-  
-  if (score > 1000) {
-    rank = { rank: "S+", title: "Legendary Flan", description: "The texture is perfect!", emoji: "🍮✨", color: "#f59e0b" }
-  } else if (score > 500) {
-    rank = { rank: "S", title: "Master Pudim", description: "Michelin star worthy.", emoji: "🍮", color: "#ca8a04" }
-  } else if (score > 200) {
-    rank = { rank: "A", title: "Tasty Pudding", description: "Everyone wants a slice!", emoji: "😋", color: "#f97316" }
-  } else if (score > 100) {
-    rank = { rank: "B", title: "Sweet Treat", description: "A good dessert.", emoji: "🍬", color: "#fb923c" }
-  } else if (score > 50) {
-    rank = { rank: "C", title: "Homemade", description: "Made with love.", emoji: "🏠", color: "#a16207" }
-  } else {
-    rank = { rank: "D", title: "Underbaked", description: "Needs more time.", emoji: "🥚", color: "#71717a" }
-  }
-
-  return { score, rank }
+// Map Tailwind color classes to hex for badge rendering
+const rankColorMap: Record<string, string> = {
+  "text-amber-500": "#f59e0b",
+  "text-yellow-600": "#ca8a04",
+  "text-orange-500": "#f97316",
+  "text-orange-400": "#fb923c",
+  "text-yellow-700": "#a16207",
+  "text-zinc-500": "#71717a",
 }
 
 export async function GET(
@@ -115,9 +87,12 @@ export async function GET(
       )
     }
 
-    // TypeScript now knows stats is GitHubStats
+    // Calculate score using server-side business rule
     const { rank } = calculatePudimScore(stats as GitHubStats)
     const topLanguages = stats.languages?.slice(0, 5) || []
+    
+    // Map Tailwind color class to hex for badge rendering
+    const badgeColor = rankColorMap[rank.color] || rank.color
 
     return new ImageResponse(
       (
@@ -200,7 +175,7 @@ export async function GET(
                     display: 'flex',
                     fontSize: 72,
                     fontWeight: 900,
-                    color: rank.color,
+                    color: badgeColor,
                     lineHeight: 1,
                   }}
                 >
@@ -211,7 +186,7 @@ export async function GET(
                     display: 'flex',
                     fontSize: 28,
                     fontWeight: 'bold',
-                    color: rank.color,
+                    color: badgeColor,
                   }}
                 >
                   {rank.title}

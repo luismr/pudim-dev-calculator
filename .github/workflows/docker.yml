@@ -4,12 +4,8 @@ on:
   push:
     branches:
       - main
-      - 'feature/*'
-      - 'hotfix/*'
     tags:
       - 'v*.*.*'
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 env:
