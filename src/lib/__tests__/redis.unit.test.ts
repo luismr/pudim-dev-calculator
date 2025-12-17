@@ -447,4 +447,147 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       expect(setexCall[1]).toBe(300)
     })
   })
+
+  describe('getCachedBadge', () => {
+    it('returns null when REDIS_ENABLED is false', async () => {
+      process.env.REDIS_ENABLED = 'false'
+      
+      const { getCachedBadge } = await import('../redis')
+      const result = await getCachedBadge('testuser')
+      
+      expect(result).toBeNull()
+      expect(mockGet).not.toHaveBeenCalled()
+    })
+
+    it('returns cached badge when available', async () => {
+      const mockBuffer = Buffer.from('fake-image-data')
+      const base64Image = mockBuffer.toString('base64')
+      
+      mockGet.mockResolvedValue(base64Image)
+
+      const { getCachedBadge } = await import('../redis')
+      const result = await getCachedBadge('TestUser')
+      
+      expect(result).toEqual(mockBuffer)
+      expect(mockGet).toHaveBeenCalledWith('test:badge:testuser')
+    })
+
+    it('returns null when cache miss', async () => {
+      mockGet.mockResolvedValue(null)
+
+      const { getCachedBadge } = await import('../redis')
+      const result = await getCachedBadge('testuser')
+      
+      expect(result).toBeNull()
+      expect(mockGet).toHaveBeenCalledWith('test:badge:testuser')
+    })
+
+    it('handles read errors gracefully and opens circuit breaker', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      
+      mockGet.mockRejectedValue(new Error('Connection failed'))
+
+      const { getCachedBadge } = await import('../redis')
+      const result = await getCachedBadge('testuser')
+      
+      expect(result).toBeNull()
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Error reading badge from Redis cache:', expect.any(Error))
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Redis circuit breaker opened'))
+      
+      consoleErrorSpy.mockRestore()
+      consoleWarnSpy.mockRestore()
+    })
+
+    it('uses correct badge cache key format', async () => {
+      process.env.REDIS_PREFIX = 'custom:'
+
+      const { getCachedBadge } = await import('../redis')
+      await getCachedBadge('myuser')
+      
+      expect(mockGet).toHaveBeenCalledWith('custom:badge:myuser')
+    })
+
+    it('converts username to lowercase in badge cache key', async () => {
+      const { getCachedBadge } = await import('../redis')
+      await getCachedBadge('TestUser')
+      
+      expect(mockGet).toHaveBeenCalledWith('test:badge:testuser')
+    })
+  })
+
+  describe('setCachedBadge', () => {
+    it('does nothing when REDIS_ENABLED is false', async () => {
+      process.env.REDIS_ENABLED = 'false'
+      
+      const { setCachedBadge } = await import('../redis')
+      const imageBuffer = Buffer.from('fake-image-data')
+      
+      await setCachedBadge('testuser', imageBuffer)
+      
+      expect(mockSetex).not.toHaveBeenCalled()
+    })
+
+    it('sets cached badge with TTL as base64 string', async () => {
+      const { setCachedBadge } = await import('../redis')
+      const imageBuffer = Buffer.from('fake-image-data')
+      
+      await setCachedBadge('TestUser', imageBuffer)
+      
+      expect(mockSetex).toHaveBeenCalledWith(
+        'test:badge:testuser',
+        300,
+        imageBuffer.toString('base64')
+      )
+    })
+
+    it('uses default TTL when REDIS_TTL is not set', async () => {
+      delete process.env.REDIS_TTL
+
+      const { setCachedBadge } = await import('../redis')
+      const imageBuffer = Buffer.from('fake-image-data')
+      
+      await setCachedBadge('testuser', imageBuffer)
+      
+      expect(mockSetex).toHaveBeenCalledWith(
+        'test:badge:testuser',
+        300, // Default TTL
+        imageBuffer.toString('base64')
+      )
+    })
+
+    it('handles write errors gracefully without throwing', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      
+      mockSetex.mockRejectedValue(new Error('Write failed'))
+
+      const { setCachedBadge } = await import('../redis')
+      const imageBuffer = Buffer.from('fake-image-data')
+      
+      // Should not throw
+      await expect(setCachedBadge('testuser', imageBuffer)).resolves.not.toThrow()
+      
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Error writing badge to Redis cache:', expect.any(Error))
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Redis circuit breaker opened'))
+      
+      consoleErrorSpy.mockRestore()
+      consoleWarnSpy.mockRestore()
+    })
+
+    it('uses custom TTL from environment', async () => {
+      process.env.REDIS_TTL = '600'
+
+      const { setCachedBadge } = await import('../redis')
+      const imageBuffer = Buffer.from('fake-image-data')
+      
+      await setCachedBadge('testuser', imageBuffer)
+      
+      expect(mockSetex).toHaveBeenCalledWith(
+        'test:badge:testuser',
+        600,
+        imageBuffer.toString('base64')
+      )
+    })
+  })
 })

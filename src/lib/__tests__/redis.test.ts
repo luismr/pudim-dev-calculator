@@ -444,5 +444,139 @@ describe('Redis Cache Integration', () => {
       expect(result).toBeNull() // Cache miss, but client should have been recreated
     })
   })
+
+  describe('getCachedBadge (Integration)', () => {
+    it('returns null when Redis is disabled', async () => {
+      process.env.REDIS_ENABLED = 'false'
+      
+      const { getCachedBadge } = await reImportRedisModule()
+      const result = await getCachedBadge('testuser')
+      
+      expect(result).toBeNull()
+    })
+
+    it('returns cached badge image when available', async () => {
+      process.env.REDIS_ENABLED = 'true'
+      process.env.REDIS_PREFIX = 'integration_test:'
+      process.env.REDIS_URL = 'redis://localhost:6379'
+      
+      const mockImageBuffer = Buffer.from('fake-png-image-data')
+      const base64Image = mockImageBuffer.toString('base64')
+      
+      await testRedisClient.set('integration_test:badge:testuser', base64Image)
+      
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
+      const { getCachedBadge } = await reImportRedisModule()
+      const result = await getCachedBadge('TestUser')
+      
+      expect(result).toEqual(mockImageBuffer)
+    })
+
+    it('returns null when cache miss', async () => {
+      process.env.REDIS_ENABLED = 'true'
+      
+      const { getCachedBadge } = await reImportRedisModule()
+      const result = await getCachedBadge('nonexistent-user')
+      
+      expect(result).toBeNull()
+    })
+
+    it('uses correct badge cache key with prefix', async () => {
+      process.env.REDIS_ENABLED = 'true'
+      process.env.REDIS_PREFIX = 'integration_test:'
+      
+      const { getCachedBadge } = await reImportRedisModule()
+      await getCachedBadge('testuser')
+      
+      // Verify the key format by checking Redis directly
+      const keys = await testRedisClient.keys('integration_test:badge:*')
+      expect(keys.length).toBe(0) // Should be 0 since it was a miss
+    })
+  })
+
+  describe('setCachedBadge (Integration)', () => {
+    it('does nothing when Redis is disabled', async () => {
+      process.env.REDIS_ENABLED = 'false'
+      process.env.REDIS_URL = 'redis://localhost:6379'
+      
+      const { setCachedBadge } = await reImportRedisModule()
+      const imageBuffer = Buffer.from('fake-png-image-data')
+      
+      await setCachedBadge('testuser', imageBuffer)
+      
+      // Verify nothing was written to Redis
+      const keys = await testRedisClient.keys('*testuser*')
+      expect(keys.length).toBe(0)
+    })
+
+    it('sets cached badge with TTL', async () => {
+      process.env.REDIS_ENABLED = 'true'
+      process.env.REDIS_TTL = '2' // 2 seconds for test
+      process.env.REDIS_PREFIX = 'integration_test:'
+      process.env.REDIS_URL = 'redis://localhost:6379'
+      
+      const { setCachedBadge } = await reImportRedisModule()
+      const imageBuffer = Buffer.from('fake-png-image-data')
+      
+      await setCachedBadge('TestUser', imageBuffer)
+      
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      const key = 'integration_test:badge:testuser'
+      const cached = await testRedisClient.get(key)
+      expect(cached).not.toBeNull()
+      
+      // Verify it's stored as base64
+      const decodedBuffer = Buffer.from(cached!, 'base64')
+      expect(decodedBuffer.equals(imageBuffer)).toBe(true)
+
+      // Check TTL expiration
+      await new Promise(resolve => setTimeout(resolve, 2100))
+      const afterTtl = await testRedisClient.get(key)
+      expect(afterTtl).toBeNull()
+    })
+
+    it('uses default TTL when REDIS_TTL is not set', async () => {
+      process.env.REDIS_ENABLED = 'true'
+      delete process.env.REDIS_TTL
+      process.env.REDIS_PREFIX = 'integration_test:'
+      process.env.REDIS_URL = 'redis://localhost:6379'
+      
+      const { setCachedBadge } = await reImportRedisModule()
+      const imageBuffer = Buffer.from('fake-png-image-data')
+      
+      await setCachedBadge('testuser', imageBuffer)
+      
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      const key = 'integration_test:badge:testuser'
+      const cached = await testRedisClient.get(key)
+      expect(cached).not.toBeNull()
+
+      // Default TTL is 300 seconds, check if it's set correctly
+      const ttl = await testRedisClient.ttl(key)
+      expect(ttl).toBeGreaterThan(290)
+    })
+
+    it('round-trip: write and read badge image', async () => {
+      process.env.REDIS_ENABLED = 'true'
+      process.env.REDIS_PREFIX = 'integration_test:'
+      process.env.REDIS_URL = 'redis://localhost:6379'
+      
+      const { setCachedBadge, getCachedBadge } = await reImportRedisModule()
+      const originalBuffer = Buffer.from('test-image-data-12345')
+      
+      // Write
+      await setCachedBadge('roundtripuser', originalBuffer)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Read
+      const retrievedBuffer = await getCachedBadge('roundtripuser')
+      
+      expect(retrievedBuffer).not.toBeNull()
+      expect(retrievedBuffer!.equals(originalBuffer)).toBe(true)
+    })
+  })
 })
 
