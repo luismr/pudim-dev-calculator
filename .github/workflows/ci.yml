@@ -67,22 +67,27 @@ jobs:
         ports:
           - 6379:6379
       
-      dynamodb:
-        image: amazon/dynamodb-local:latest
-        options: >-
-          --user root
-          --entrypoint sh
-          -c "java -jar DynamoDBLocal.jar -sharedDb -inMemory"
-          --health-cmd "curl -f http://localhost:8000/ || exit 1"
-          --health-interval 10s
-          --health-timeout 3s
-          --health-retries 3
-        ports:
-          - 8000:8000
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+      
+      - name: Start DynamoDB manually
+        run: |
+          docker run -d \
+            --name dynamodb \
+            -p 8000:8000 \
+            --user root \
+            amazon/dynamodb-local:latest \
+            -jar DynamoDBLocal.jar -sharedDb -inMemory
+          echo "Waiting for DynamoDB to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8000/ > /dev/null 2>&1; then
+              echo "✓ DynamoDB is ready!"
+              break
+            fi
+            echo "Waiting for DynamoDB... ($i/30)"
+            sleep 2
+          done
       
       - name: Setup Node.js
         uses: actions/setup-node@v6
