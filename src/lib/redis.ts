@@ -227,12 +227,30 @@ export async function getCachedStats(
     if (cached) {
       // Successfully read from cache, close circuit breaker if it was open
       closeCircuitBreaker()
-      return JSON.parse(cached) as GitHubStats
+      const stats = JSON.parse(cached) as GitHubStats
+      console.log(`[Redis Cache] Cache HIT for user "${username}":`, {
+        username,
+        key,
+        followers: stats.followers,
+        total_stars: stats.total_stars,
+        public_repos: stats.public_repos,
+        timestamp: new Date().toISOString(),
+      })
+      return stats
     }
     
+    console.log(`[Redis Cache] Cache MISS for user "${username}":`, {
+      username,
+      key,
+      timestamp: new Date().toISOString(),
+    })
     return null
   } catch (error) {
-    console.error('Error reading from Redis cache:', error)
+    console.error('[Redis Cache] Error reading from cache:', {
+      username,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    })
     // Open circuit breaker on read errors
     openCircuitBreaker()
     return null
@@ -248,6 +266,10 @@ export async function setCachedStats(
 ): Promise<void> {
   const client = await getRedisClient()
   if (!client) {
+    console.log(`[Redis Cache] Cache SAVE skipped for user "${username}" (Redis disabled or unavailable):`, {
+      username,
+      timestamp: new Date().toISOString(),
+    })
     return
   }
 
@@ -259,8 +281,22 @@ export async function setCachedStats(
     await client.setex(key, ttl, JSON.stringify(stats))
     // Successfully wrote to cache, close circuit breaker if it was open
     closeCircuitBreaker()
+    console.log(`[Redis Cache] Cache SAVE successful for user "${username}":`, {
+      username,
+      key,
+      ttl_seconds: ttl,
+      followers: stats.followers,
+      total_stars: stats.total_stars,
+      public_repos: stats.public_repos,
+      timestamp: new Date().toISOString(),
+    })
   } catch (error) {
-    console.error('Error writing to Redis cache:', error)
+    console.error('[Redis Cache] Error writing to cache:', {
+      username,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      error_name: error instanceof Error ? error.name : typeof error,
+      timestamp: new Date().toISOString(),
+    })
     // Open circuit breaker on write errors
     openCircuitBreaker()
     // Don't throw - caching failures shouldn't break the app

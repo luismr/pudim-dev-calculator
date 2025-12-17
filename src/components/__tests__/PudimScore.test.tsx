@@ -275,7 +275,7 @@ describe('PudimScore', () => {
     await user.click(button)
 
     await waitFor(() => {
-      expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument()
+      expect(screen.getByText(/An unexpected error occurred. Please try again./)).toBeInTheDocument()
     })
   })
 

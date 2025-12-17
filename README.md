@@ -6,6 +6,8 @@
 ![React](https://img.shields.io/badge/React-19.2.0-blue?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?style=flat-square&logo=typescript)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind-4.x-38bdf8?style=flat-square&logo=tailwindcss)
+![Redis](https://img.shields.io/badge/Redis-7-alpine-red?style=flat-square&logo=redis)
+![DynamoDB](https://img.shields.io/badge/DynamoDB-Local-orange?style=flat-square&logo=amazon-dynamodb)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
 🍮 Calculate your Dev Pudim Score! Next.js app that analyzes GitHub profiles and ranks developers with dessert-themed titles from "Legendary Flan" to "Underbaked". Built with Next.js 16, React 19, Tailwind & shadcn/ui. Inspired by github-readme-stats. Gamifies developer stats into a sweet scoring system. Check your flavor!
@@ -379,6 +381,111 @@ REDIS_ENABLED=false npm run dev
 
 The application will work normally without Redis, always fetching fresh data from GitHub API.
 
+## 🗄️ DynamoDB Score Storage
+
+pudim.dev includes optional DynamoDB integration for storing and querying pudim scores with timestamps. This enables score history tracking and leaderboard functionality.
+
+### Features
+
+- **📊 Score History**: Every score calculation is automatically saved with UTC timestamp
+- **🏆 Top Scores Query**: Query top 10 scores across all users
+- **🔄 Automatic Tracking**: Scores saved automatically when calculated
+- **🛡️ Fault Tolerant**: Circuit breaker pattern handles DynamoDB failures gracefully
+- **⚙️ Configurable**: Enable/disable via environment variable
+- **🔌 Optional**: Application works perfectly without DynamoDB
+
+### Configuration
+
+Enable DynamoDB storage via environment variables:
+
+```bash
+# Enable DynamoDB
+DYNAMODB_ENABLED=true
+
+# DynamoDB endpoint (local or AWS)
+DYNAMODB_ENDPOINT=http://localhost:8000  # For local development
+# Omit DYNAMODB_ENDPOINT to use AWS DynamoDB in production
+
+# Circuit breaker cooldown (optional)
+DYNAMODB_CIRCUIT_BREAKER_COOLDOWN=300000  # 5 minutes (default)
+
+# AWS credentials (for local, use dummy values)
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=local
+AWS_SECRET_ACCESS_KEY=local
+```
+
+### How It Works
+
+1. **Score Calculation**: When a user calculates their pudim score:
+   - Score is calculated and returned immediately
+   - Score is saved to DynamoDB in the background (non-blocking)
+
+2. **Data Storage**: Each calculation creates a record with:
+   - Username
+   - UTC timestamp (ISO 8601)
+   - Calculated score
+   - Rank information
+   - Complete GitHub stats
+
+3. **Querying**: Use `getTopScores()` server action to retrieve:
+   - Top 10 scores across all users
+   - Latest score per user
+   - Sorted by score descending
+
+### Development Setup
+
+**Using Docker Compose (Recommended):**
+
+```bash
+# Start DynamoDB Local
+docker-compose up dynamodb -d
+
+# Start application with DynamoDB enabled
+DYNAMODB_ENABLED=true npm run dev
+```
+
+**Using Local DynamoDB:**
+
+```bash
+# Download DynamoDB Local
+# https://docs.aws.amazon.com/amazon-dynamodb/latest/developerguide/DynamoDBLocal.html
+
+# Start DynamoDB Local
+java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar -sharedDb
+
+# Start application
+DYNAMODB_ENABLED=true DYNAMODB_ENDPOINT=http://localhost:8000 npm run dev
+```
+
+### Disabling DynamoDB
+
+To run without DynamoDB:
+
+```bash
+# Set DYNAMODB_ENABLED to false or omit it
+DYNAMODB_ENABLED=false npm run dev
+```
+
+The application continues to work normally, scores just won't be persisted.
+
+### Production Considerations
+
+For production with AWS DynamoDB:
+
+1. **Omit endpoint** to use AWS DynamoDB:
+   ```bash
+   DYNAMODB_ENABLED=true
+   # DYNAMODB_ENDPOINT omitted - uses AWS
+   AWS_REGION=us-east-1
+   AWS_ACCESS_KEY_ID=<your-key>
+   AWS_SECRET_ACCESS_KEY=<your-secret>
+   ```
+
+2. **Table auto-creation**: Table is created automatically on first use
+3. **Circuit breaker**: Automatically handles failures and retries
+4. **Monitoring**: Check logs for circuit breaker openings
+
 ## 💡 Inspiration
 
 This project is lovingly inspired by:
@@ -413,7 +520,9 @@ This project is built with modern web technologies:
 ### Data & Caching
 - **[ioredis](https://github.com/redis/ioredis)** - Redis client for caching GitHub stats
 - **Redis 7** - In-memory cache with configurable TTL
-- **Circuit Breaker Pattern** - Fault-tolerant Redis connection handling
+- **[AWS SDK DynamoDB](https://aws.amazon.com/sdk-for-javascript/)** - DynamoDB client for score storage
+- **DynamoDB Local** - Local DynamoDB for development and testing
+- **Circuit Breaker Pattern** - Fault-tolerant connection handling for Redis and DynamoDB
 
 ### Developer Experience
 - **[ESLint 9](https://eslint.org/)** - Code linting
@@ -426,6 +535,7 @@ This project is built with modern web technologies:
 - Node.js 20+ (LTS recommended)
 - npm, yarn, pnpm, or bun
 - Redis 7+ (optional, for caching)
+- DynamoDB Local (optional, for score storage)
 
 ### Installation
 
@@ -448,25 +558,28 @@ pnpm install
 bun install
 ```
 
-3. **(Optional) Start Redis for caching**
+3. **(Optional) Start services for caching and storage**
 
 ```bash
 # Using Docker Compose (recommended)
-docker-compose up redis -d
+docker-compose up redis dynamodb -d
 
-# Or install and start Redis locally
-brew install redis  # macOS
-redis-server
+# Or start services individually
+docker-compose up redis -d      # Redis for caching
+docker-compose up dynamodb -d   # DynamoDB for score storage
 ```
 
 4. **Run the development server**
 
 ```bash
-# Without Redis
+# Without services
 npm run dev
 
 # With Redis caching enabled
 REDIS_ENABLED=true npm run dev
+
+# With both Redis and DynamoDB enabled
+REDIS_ENABLED=true DYNAMODB_ENABLED=true npm run dev
 ```
 
 5. **Open your browser**
@@ -558,9 +671,9 @@ npm run typecheck && npm run lint && npm run test:unit && npm run test:integrati
 | **Unit Tests** | 89.1% | 89.16% | 84.15% | 90.24% |
 | **Integration Tests** | 84.31% | 84.31% | 82.35% | 93.75% |
 
-> 📝 Unit tests exclude integration tests and run with mocked dependencies.
-> 
-> 🔧 Integration tests verify Redis functionality with a real Redis instance.
+          > 📝 Unit tests exclude integration tests and run with mocked dependencies.
+          > 
+          > 🔧 Integration tests verify Redis and DynamoDB functionality with real service instances.
 ```
 
 **2. Docker Build & Push** (`.github/workflows/docker.yml`)
@@ -684,6 +797,7 @@ docker-compose down
 The `docker-compose.yml` includes:
 - **pudim-dev** - Next.js application on port 3000
 - **redis** - Redis 7 Alpine for caching (optional, only used if `REDIS_ENABLED=true`)
+- **dynamodb** - DynamoDB Local for score storage (optional, only used if `DYNAMODB_ENABLED=true`)
 
 ### Accessing the Application
 
@@ -731,6 +845,12 @@ The Docker image supports the following environment variables:
 | `REDIS_PREFIX` | `pudim:` | Redis key prefix |
 | `REDIS_TTL` | `3600` | Cache TTL in seconds (1 hour) |
 | `REDIS_CIRCUIT_BREAKER_COOLDOWN` | `60000` | Circuit breaker cooldown in ms |
+| `DYNAMODB_ENABLED` | `false` | Enable DynamoDB score storage |
+| `DYNAMODB_ENDPOINT` | - | DynamoDB endpoint (omit for AWS) |
+| `DYNAMODB_CIRCUIT_BREAKER_COOLDOWN` | `300000` | Circuit breaker cooldown in ms (5 min) |
+| `AWS_REGION` | `us-east-1` | AWS region |
+| `AWS_ACCESS_KEY_ID` | - | AWS access key (use `local` for DynamoDB Local) |
+| `AWS_SECRET_ACCESS_KEY` | - | AWS secret key (use `local` for DynamoDB Local) |
 
 Example with Redis enabled:
 
@@ -838,10 +958,11 @@ The project separates unit and integration tests for better organization:
 - **Coverage: ~89% lines, ~84% branches**
 
 **Integration Tests** (`npm run test:integration`)
-- Uses real Redis instance for testing caching behavior
+- Uses real Redis and DynamoDB Local instances for testing
 - Tests Redis connection, circuit breaker, and cache operations
-- Requires Redis running (Docker Compose or local instance)
-- **17 tests** in 1 test file (`redis.test.ts`)
+- Tests DynamoDB table creation, score storage, and queries
+- Requires Redis and DynamoDB Local running (Docker Compose or local instances)
+- **50 tests** across 2 test files (`redis.test.ts`, `dynamodb.test.ts`)
 - **Coverage: ~84% lines, ~82% branches**
 
 ### Setting Up Integration Tests
@@ -850,23 +971,26 @@ Integration tests require a running Redis instance:
 
 **Option 1: Using Docker Compose (Recommended)**
 ```bash
-# Start Redis
-docker-compose up redis -d
+# Start Redis and DynamoDB Local
+docker-compose up redis dynamodb -d
 
 # Run integration tests
 npm run test:integration
 
-# Stop Redis
+# Stop services
 docker-compose down
 ```
 
-**Option 2: Local Redis**
+**Option 2: Local Services**
 ```bash
 # Install Redis (macOS)
 brew install redis
 
 # Start Redis
 redis-server
+
+# Start DynamoDB Local (download from AWS)
+java -jar DynamoDBLocal.jar -sharedDb
 
 # Run integration tests
 npm run test:integration
@@ -879,6 +1003,13 @@ export REDIS_ENABLED=true
 export REDIS_URL=redis://localhost:6379
 export REDIS_PREFIX=test:
 export REDIS_TTL=300
+
+# Configure DynamoDB connection
+export DYNAMODB_ENABLED=true
+export DYNAMODB_ENDPOINT=http://localhost:8000
+export AWS_REGION=us-east-1
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
 
 # Run integration tests
 npm run test:integration
@@ -903,9 +1034,10 @@ The comprehensive test suite covers:
 - ✅ **UI Components**: Card, Dialog, Sheet components
 - ✅ **Utilities**: Class name merging utility
 - ✅ **Redis Caching**: Connection handling, circuit breaker, cache operations
+- ✅ **DynamoDB Storage**: Table creation, score persistence, queries, top scores
 - ✅ **Edge Cases**: Runtime detection, error handling, fault tolerance
 
-**Total: 159 tests across 18 test files**
+**Total: 238 tests across 20 test files**
 
 ### Writing Tests
 
@@ -969,10 +1101,10 @@ src/
 - No external services required
 
 **Integration Tests:**
-- File pattern: `src/lib/__tests__/redis.test.ts`
-- Uses real Redis service
+- File patterns: `src/lib/__tests__/redis.test.ts`, `src/lib/__tests__/dynamodb.test.ts`
+- Uses real Redis and DynamoDB Local services
 - Tests end-to-end functionality
-- Requires Redis running on `redis://localhost:6379`
+- Requires Redis running on `redis://localhost:6379` and DynamoDB Local on `http://localhost:8000`
 
 ## 🤝 Contributing
 
@@ -1064,6 +1196,12 @@ The project follows a clean, organized structure with clear separation of concer
   - Circuit breaker pattern for fault tolerance
   - Automatic failover to direct API calls
   - Configurable TTL and connection settings
+
+- **`lib/dynamodb.ts`** - DynamoDB score storage
+  - Automatic table creation
+  - Score persistence with UTC timestamps
+  - Top scores querying
+  - Circuit breaker pattern for fault tolerance
 
 - **`components/`** - React components
   - UI components in `components/ui/`
@@ -1158,7 +1296,9 @@ pudim.dev/
 │       ├── __tests__/
 │       │   ├── utils.test.ts
 │       │   ├── redis.unit.test.ts   # Redis unit tests (mocked)
-│       │   └── redis.test.ts        # Redis integration tests
+│       │   ├── redis.test.ts        # Redis integration tests
+│       │   ├── dynamodb.unit.test.ts # DynamoDB unit tests (mocked)
+│       │   └── dynamodb.test.ts      # DynamoDB integration tests
 │       ├── pudim/               # Pudim score business logic
 │       │   ├── __tests__/
 │       │   │   ├── github.test.ts
@@ -1168,6 +1308,7 @@ pudim.dev/
 │       │   ├── types.ts         # TypeScript type definitions
 │       │   └── index.ts         # Barrel exports
 │       ├── redis.ts             # Redis caching with circuit breaker
+│       ├── dynamodb.ts          # DynamoDB score storage with circuit breaker
 │       └── utils.ts             # Utility functions
 ├── .dockerignore                # Docker ignore patterns
 ├── Dockerfile                   # Docker production build

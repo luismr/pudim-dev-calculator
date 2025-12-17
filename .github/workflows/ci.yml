@@ -66,6 +66,16 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+      
+      dynamodb:
+        image: amazon/dynamodb-local:latest
+        options: >-
+          --health-cmd "curl -f http://localhost:8000/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 8000:8000
     
     steps:
       - name: Checkout code
@@ -96,6 +106,12 @@ jobs:
           REDIS_URL: 'redis://localhost:6379'
           REDIS_PREFIX: 'test:'
           REDIS_TTL: '300'
+          DYNAMODB_ENABLED: 'true'
+          DYNAMODB_ENDPOINT: 'http://localhost:8000'
+          DYNAMODB_CIRCUIT_BREAKER_COOLDOWN: '5000'
+          AWS_REGION: 'us-east-1'
+          AWS_ACCESS_KEY_ID: 'test'
+          AWS_SECRET_ACCESS_KEY: 'test'
       
       - name: Save integration test coverage
         run: |
@@ -126,7 +142,7 @@ jobs:
           
           > 📝 Unit tests exclude integration tests and run with mocked dependencies.
           > 
-          > 🔧 Integration tests verify Redis functionality with a real Redis instance.
+          > 🔧 Integration tests verify Redis and DynamoDB functionality with real service instances.
           EOF
       
       - name: Upload coverage reports to Codecov

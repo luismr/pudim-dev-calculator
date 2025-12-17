@@ -116,7 +116,11 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       const result = await getCachedStats('testuser')
       
       expect(result).toBeNull()
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Error reading from Redis cache:', expect.any(Error))
+      expect(consoleErrorSpy).toHaveBeenCalledWith('[Redis Cache] Error reading from cache:', expect.objectContaining({
+        username: 'testuser',
+        error: 'Connection failed',
+        timestamp: expect.any(String),
+      }))
       expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Redis circuit breaker opened'))
       
       consoleErrorSpy.mockRestore()
@@ -221,7 +225,12 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       // Should not throw
       await expect(setCachedStats('testuser', stats)).resolves.not.toThrow()
       
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Error writing to Redis cache:', expect.any(Error))
+      expect(consoleErrorSpy).toHaveBeenCalledWith('[Redis Cache] Error writing to cache:', expect.objectContaining({
+        username: 'testuser',
+        error: 'Write failed',
+        error_name: 'Error',
+        timestamp: expect.any(String),
+      }))
       expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Redis circuit breaker opened'))
       
       consoleErrorSpy.mockRestore()

@@ -17,6 +17,12 @@ services:
       - REDIS_TTL="300"
       - REDIS_PREFIX="pudim:github:"
       - REDIS_CIRCUIT_BREAKER_COOLDOWN="300000"
+      - DYNAMODB_ENABLED="true"
+      - DYNAMODB_ENDPOINT="http://dynamodb:8000"
+      - DYNAMODB_CIRCUIT_BREAKER_COOLDOWN="300000"
+      - AWS_REGION="us-east-1"
+      - AWS_ACCESS_KEY_ID="local"
+      - AWS_SECRET_ACCESS_KEY="local"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
@@ -26,6 +32,7 @@ services:
       retries: 3
     depends_on:
       - redis
+      - dynamodb
 
   redis:
     image: redis:7-alpine
@@ -42,7 +49,25 @@ services:
       - redis-data:/data
     command: redis-server --appendonly yes
 
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    container_name: pudim-dynamodb
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    user: root
+    volumes:
+      - dynamodb-data:/data
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /data"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
 volumes:
   redis-data:
+    driver: local
+  dynamodb-data:
     driver: local
 
