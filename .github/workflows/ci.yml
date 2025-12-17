@@ -69,11 +69,6 @@ jobs:
       
       dynamodb:
         image: amazon/dynamodb-local:latest
-        options: >-
-          --health-cmd "curl -f http://localhost:8000/ || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
         ports:
           - 8000:8000
     
@@ -98,6 +93,20 @@ jobs:
           mkdir -p coverage-reports
           cp coverage/coverage-summary.json coverage-reports/unit-coverage.json
           cp coverage/cobertura-coverage.xml coverage-reports/unit-cobertura.xml
+      
+      - name: Wait for DynamoDB to be ready
+        run: |
+          echo "Waiting for DynamoDB Local to be ready..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8000/ > /dev/null 2>&1; then
+              echo "DynamoDB Local is ready!"
+              exit 0
+            fi
+            echo "Attempt $i/30: DynamoDB not ready yet, waiting..."
+            sleep 2
+          done
+          echo "DynamoDB Local failed to start"
+          exit 1
       
       - name: Run integration tests
         run: npm run test:integration
