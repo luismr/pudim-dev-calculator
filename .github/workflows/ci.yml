@@ -71,9 +71,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
       
-      - name: Set up Docker Compose
-        uses: docker/setup-compose-action@v3
-      
       - name: Start DynamoDB with docker-compose
         run: |
           docker-compose up -d dynamodb
