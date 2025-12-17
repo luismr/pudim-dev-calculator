@@ -66,10 +66,91 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-    
+      
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+      
+      - name: Start DynamoDB manually
+        run: |
+          docker run -d \
+            --name dynamodb \
+            -p 8000:8000 \
+            --user root \
+            amazon/dynamodb-local:latest \
+            -jar DynamoDBLocal.jar -sharedDb -inMemory
+          
+          echo "Checking DynamoDB container status..."
+          echo "=== docker ps ==="
+          docker ps --filter name=dynamodb --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
+          
+          echo ""
+          echo "=== docker inspect ==="
+          docker inspect dynamodb --format '{{json .}}' | jq '{
+            Id: .Id,
+            State: .State.Status,
+            Running: .State.Running,
+            Paused: .State.Paused,
+            Restarting: .State.Restarting,
+            StartedAt: .State.StartedAt,
+            NetworkSettings: {
+              IPAddress: .NetworkSettings.IPAddress,
+              Ports: .NetworkSettings.Ports
+            },
+            Config: {
+              User: .Config.User,
+              Cmd: .Config.Cmd,
+              Entrypoint: .Config.Entrypoint
+            }
+          }' || docker inspect dynamodb
+          
+          echo ""
+          echo "Waiting for DynamoDB to start..."
+          for i in {1..30}; do
+            # Check container is running
+            if ! docker ps --filter name=dynamodb --format "{{.Names}}" | grep -q dynamodb; then
+              echo "⚠ DynamoDB container is not running!"
+              docker ps -a --filter name=dynamodb
+              docker logs dynamodb || true
+              exit 1
+            fi
+            
+            # Check if DynamoDB is accessible (use ListTables API call for proper 200 response)
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/ \
+              -H "Content-Type: application/x-amz-json-1.0" \
+              -H "X-Amz-Target: DynamoDB_20120810.ListTables" \
+              -d '{}' 2>/dev/null || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✓ DynamoDB is ready! (HTTP $HTTP_CODE)"
+              docker ps --filter name=dynamodb
+              break
+            elif [ "$HTTP_CODE" = "400" ]; then
+              # 400 also means DynamoDB is running (invalid request format)
+              echo "✓ DynamoDB is responding! (HTTP $HTTP_CODE - service is up)"
+              docker ps --filter name=dynamodb
+              break
+            fi
+            echo "Waiting for DynamoDB... ($i/30)"
+            sleep 2
+          done
+          
+          # Final check with proper API call
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/ \
+            -H "Content-Type: application/x-amz-json-1.0" \
+            -H "X-Amz-Target: DynamoDB_20120810.ListTables" \
+            -d '{}' 2>/dev/null || echo "000")
+          
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "400" ]; then
+            echo "❌ DynamoDB failed to start (HTTP $HTTP_CODE)"
+            echo "=== Container logs ==="
+            docker logs dynamodb || true
+            echo "=== Container inspect ==="
+            docker inspect dynamodb || true
+            exit 1
+          else
+            echo "✓ DynamoDB is ready! (HTTP $HTTP_CODE)"
+          fi
       
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -96,6 +177,12 @@ jobs:
           REDIS_URL: 'redis://localhost:6379'
           REDIS_PREFIX: 'test:'
           REDIS_TTL: '300'
+          DYNAMODB_ENABLED: 'true'
+          DYNAMODB_ENDPOINT: 'http://localhost:8000'
+          DYNAMODB_CIRCUIT_BREAKER_COOLDOWN: '5000'
+          AWS_REGION: 'us-east-1'
+          AWS_ACCESS_KEY_ID: 'test'
+          AWS_SECRET_ACCESS_KEY: 'test'
       
       - name: Save integration test coverage
         run: |
@@ -126,7 +213,7 @@ jobs:
           
           > 📝 Unit tests exclude integration tests and run with mocked dependencies.
           > 
-          > 🔧 Integration tests verify Redis functionality with a real Redis instance.
+          > 🔧 Integration tests verify Redis and DynamoDB functionality with real service instances.
           EOF
       
       - name: Upload coverage reports to Codecov

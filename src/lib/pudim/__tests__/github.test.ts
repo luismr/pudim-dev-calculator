@@ -75,6 +75,8 @@ describe('getGithubStats', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
       status: 404,
+      statusText: 'Not Found',
+      text: async () => '{"message":"Not Found"}',
     } as Response)
 
     const result = await getGithubStats('nonexistentuser')
@@ -88,22 +90,24 @@ describe('getGithubStats', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
       status: 500,
+      statusText: 'Internal Server Error',
+      text: async () => '{"message":"Internal Server Error"}',
     } as Response)
 
     const result = await getGithubStats('testuser')
 
     expect(result).toEqual({
-      error: 'Failed to fetch user data',
+      error: 'GitHub API is temporarily unavailable. Please try again later.',
     })
   })
 
   it('returns error when API fails', async () => {
-    vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'))
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'))
 
     const result = await getGithubStats('testuser')
 
     expect(result).toEqual({
-      error: 'An unexpected error occurred',
+      error: 'Network error. Please check your connection and try again.',
     })
   })
 
@@ -338,7 +342,7 @@ describe('getGithubStats', () => {
     expect(result).toMatchObject({
       username: 'testuser',
     })
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to cache GitHub stats:', expect.any(Error))
+    expect(consoleErrorSpy).toHaveBeenCalledWith('[GitHub Stats] Failed to cache stats for user "testuser":', expect.any(Error))
     
     consoleErrorSpy.mockRestore()
   })

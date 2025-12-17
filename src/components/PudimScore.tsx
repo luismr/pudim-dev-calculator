@@ -48,15 +48,61 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
     setError("")
     setResult(null)
 
+    const startTime = Date.now()
+    const timestamp = new Date().toISOString()
+    
     try {
+      console.log(`[PudimScore Component] Starting calculation for user "${usernameToLoad}" at ${timestamp}`)
+      
       const data = await getPudimScore(usernameToLoad)
+      
       if ('error' in data) {
+        console.error(`[PudimScore Component] Error response for user "${usernameToLoad}":`, {
+          error: data.error,
+          username: usernameToLoad,
+          timestamp,
+          duration: `${Date.now() - startTime}ms`,
+        })
         setError(data.error)
       } else {
+        console.log(`[PudimScore Component] Successfully calculated score for user "${usernameToLoad}":`, {
+          username: data.stats.username,
+          score: Math.round(data.score),
+          rank: data.rank.rank,
+          timestamp,
+          duration: `${Date.now() - startTime}ms`,
+        })
         setResult(data)
       }
-    } catch {
-      setError("Something went wrong. Please try again.")
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorName = error instanceof Error ? error.name : typeof error
+      const errorCode = error && typeof error === 'object' && 'code' in error ? (error as { code?: string }).code : undefined
+      
+      console.error(`[PudimScore Component] Unexpected error for user "${usernameToLoad}":`, {
+        error: errorMessage,
+        error_name: errorName,
+        error_code: errorCode,
+        error_type: error?.constructor?.name || typeof error,
+        stack: error instanceof Error ? error.stack : undefined,
+        username: usernameToLoad,
+        timestamp,
+        duration: `${Date.now() - startTime}ms`,
+        error_details: error instanceof Error ? {
+          message: error.message,
+          name: error.name,
+          ...(error.cause && typeof error.cause === 'object' ? { cause: error.cause } : {}),
+        } : { raw_error: String(error) },
+      })
+      
+      // Provide more specific error message based on error type
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        setError('Network error. Please check your connection and try again.')
+      } else if (error instanceof Error && error.message.includes('timeout')) {
+        setError('Request timed out. Please try again.')
+      } else {
+        setError(`An unexpected error occurred. Please try again. (Error: ${errorName})`)
+      }
     } finally {
       setLoading(false)
     }

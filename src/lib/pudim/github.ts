@@ -12,18 +12,42 @@ export async function getGithubStats(
     // Check cache first if Redis is enabled
     const cachedStats = await getCachedStats(username)
     if (cachedStats) {
+      console.log(`[GitHub Stats] Using cached data for user "${username}"`)
       return cachedStats
     }
+    
+    console.log(`[GitHub Stats] Fetching from GitHub API for user "${username}"`)
 
     const userResponse = await fetch(`https://api.github.com/users/${username}`, {
       next: { revalidate: 3600 },
     })
 
     if (!userResponse.ok) {
+      const statusText = userResponse.statusText || 'Unknown error'
+      const responseBody = await userResponse.text().catch(() => 'Unable to read response body')
+      
+      console.error(`[GitHub Stats] GitHub API error for user "${username}":`, {
+        status: userResponse.status,
+        status_text: statusText,
+        response_body: responseBody,
+        username,
+        timestamp: new Date().toISOString(),
+        url: `https://api.github.com/users/${username}`,
+      })
+      
       if (userResponse.status === 404) {
         return { error: 'User not found' }
       }
-      return { error: 'Failed to fetch user data' }
+      
+      if (userResponse.status === 403) {
+        return { error: 'GitHub API rate limit exceeded. Please try again later.' }
+      }
+      
+      if (userResponse.status >= 500) {
+        return { error: 'GitHub API is temporarily unavailable. Please try again later.' }
+      }
+      
+      return { error: `Failed to fetch user data (HTTP ${userResponse.status})` }
     }
 
     const user = await userResponse.json()
@@ -70,14 +94,49 @@ export async function getGithubStats(
     }
 
     // Cache the result if Redis is enabled (fire and forget)
+    console.log(`[GitHub Stats] Saving to cache for user "${username}"`)
     setCachedStats(username, stats).catch((error) => {
       // Log but don't throw - caching failures shouldn't break the app
-      console.error('Failed to cache GitHub stats:', error)
+      console.error(`[GitHub Stats] Failed to cache stats for user "${username}":`, error)
     })
 
     return stats
-  } catch {
-    return { error: 'An unexpected error occurred' }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    const errorCode = error && typeof error === 'object' && 'code' in error ? (error as { code?: string }).code : undefined
+    const errorStack = error instanceof Error ? error.stack : undefined
+    const timestamp = new Date().toISOString()
+    
+    console.error(`[GitHub Stats] Failed to fetch stats for user "${username}":`, {
+      error: errorMessage,
+      error_name: errorName,
+      error_code: errorCode,
+      error_type: error?.constructor?.name || typeof error,
+      stack: errorStack,
+      username,
+      timestamp,
+      error_details: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        ...(error.cause && typeof error.cause === 'object' ? { cause: error.cause } : {}),
+      } : { raw_error: String(error) },
+    })
+    
+    // Return user-friendly error message based on error type
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      return { error: 'Network error. Please check your connection and try again.' }
+    }
+    
+    if (error instanceof Error && error.message.includes('timeout')) {
+      return { error: 'Request timed out. Please try again.' }
+    }
+    
+    if (error instanceof Error && 'code' in error && (error as { code?: string }).code === 'ENOTFOUND') {
+      return { error: 'DNS resolution failed. Please check your internet connection.' }
+    }
+    
+    return { error: `Failed to fetch GitHub data. Please try again later. (Error: ${errorName})` }
   }
 }
 
