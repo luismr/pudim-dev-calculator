@@ -79,15 +79,61 @@ jobs:
             --user root \
             amazon/dynamodb-local:latest \
             -jar DynamoDBLocal.jar -sharedDb -inMemory
+          
+          echo "Checking DynamoDB container status..."
+          echo "=== docker ps ==="
+          docker ps --filter name=dynamodb --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
+          
+          echo ""
+          echo "=== docker inspect ==="
+          docker inspect dynamodb --format '{{json .}}' | jq '{
+            Id: .Id,
+            State: .State.Status,
+            Running: .State.Running,
+            Paused: .State.Paused,
+            Restarting: .State.Restarting,
+            StartedAt: .State.StartedAt,
+            NetworkSettings: {
+              IPAddress: .NetworkSettings.IPAddress,
+              Ports: .NetworkSettings.Ports
+            },
+            Config: {
+              User: .Config.User,
+              Cmd: .Config.Cmd,
+              Entrypoint: .Config.Entrypoint
+            }
+          }' || docker inspect dynamodb
+          
+          echo ""
           echo "Waiting for DynamoDB to start..."
           for i in {1..30}; do
+            # Check container is running
+            if ! docker ps --filter name=dynamodb --format "{{.Names}}" | grep -q dynamodb; then
+              echo "⚠ DynamoDB container is not running!"
+              docker ps -a --filter name=dynamodb
+              docker logs dynamodb || true
+              exit 1
+            fi
+            
+            # Check if port is accessible
             if curl -f http://localhost:8000/ > /dev/null 2>&1; then
               echo "✓ DynamoDB is ready!"
+              docker ps --filter name=dynamodb
               break
             fi
             echo "Waiting for DynamoDB... ($i/30)"
             sleep 2
           done
+          
+          # Final check
+          if ! curl -f http://localhost:8000/ > /dev/null 2>&1; then
+            echo "❌ DynamoDB failed to start"
+            echo "=== Container logs ==="
+            docker logs dynamodb || true
+            echo "=== Container inspect ==="
+            docker inspect dynamodb || true
+            exit 1
+          fi
       
       - name: Setup Node.js
         uses: actions/setup-node@v6
