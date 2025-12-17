@@ -66,16 +66,23 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+      
+      dynamodb:
+        image: amazon/dynamodb-local:latest
+        options: >-
+          --user root
+          --entrypoint sh
+          -c "java -jar DynamoDBLocal.jar -sharedDb -inMemory"
+          --health-cmd "curl -f http://localhost:8000/ || exit 1"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 3
+        ports:
+          - 8000:8000
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
-      
-      - name: Start DynamoDB with docker-compose
-        run: |
-          docker-compose up -d dynamodb
-          echo "Waiting for DynamoDB to start..."
-          timeout 60 bash -c 'until docker-compose exec -T dynamodb curl -f http://localhost:8000/ > /dev/null 2>&1; do sleep 2; done' || true
       
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -166,10 +173,6 @@ jobs:
           name: coverage-reports
           path: coverage-reports/
           retention-days: 7
-      
-      - name: Stop DynamoDB
-        if: always()
-        run: docker-compose down dynamodb || true
 
   build:
     name: Build Next.js Application
