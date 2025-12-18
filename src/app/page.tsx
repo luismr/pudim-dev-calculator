@@ -5,11 +5,13 @@ import { Code, Zap, Calculator, Link2, Image as ImageIcon, Trophy, Star, Users, 
 import Link from "next/link"
 import { PudimScore } from "@/components/PudimScore"
 import { Leaderboard } from "@/components/Leaderboard"
+import { DebugLogger } from "@/components/DebugLogger"
 
 export default function Home() {
   // Check if leaderboard should be displayed
   const leaderboardEnabled = process.env.LEADERBOARD_ENABLED === 'true'
   const dynamodbEnabled = process.env.DYNAMODB_ENABLED === 'true'
+  const redisEnabled = process.env.REDIS_ENABLED === 'true'
   const showLeaderboard = leaderboardEnabled && dynamodbEnabled
 
   // WebPage structured data
@@ -50,6 +52,12 @@ export default function Home() {
 
   return (
     <main className="flex flex-col items-center w-full">
+      <DebugLogger 
+        redisEnabled={redisEnabled}
+        dynamodbEnabled={dynamodbEnabled}
+        leaderboardEnabled={leaderboardEnabled}
+        isLeaderboardVisible={showLeaderboard}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
