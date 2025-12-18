@@ -236,7 +236,7 @@ jobs:
         run: cat coverage-table.md >> $GITHUB_STEP_SUMMARY
       
       - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-reports
           path: coverage-reports/
@@ -266,7 +266,7 @@ jobs:
           NODE_ENV: production
       
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: build-artifacts
           path: |
