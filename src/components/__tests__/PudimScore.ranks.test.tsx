@@ -3,10 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PudimScore } from '../PudimScore'
 import { getPudimScore, wouldQualifyForTop10 } from '@/app/_server/actions'
+import { TestWrapper } from '@/test/setup'
 
 vi.mock('@/app/_server/actions', () => ({
   getPudimScore: vi.fn(),
   wouldQualifyForTop10: vi.fn(),
+  updateLeaderboardConsent: vi.fn(),
+  checkExistingConsent: vi.fn(),
 }))
 
 describe('PudimScore - All Rank Calculations', () => {
@@ -34,7 +37,7 @@ describe('PudimScore - All Rank Calculations', () => {
     }
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     await user.type(screen.getByPlaceholderText('GitHub Username'), 'legendary')
     await user.click(screen.getByRole('button', { name: /Calculate/i }))
@@ -69,7 +72,7 @@ describe('PudimScore - All Rank Calculations', () => {
     }
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     await user.type(screen.getByPlaceholderText('GitHub Username'), 'tasty')
     await user.click(screen.getByRole('button', { name: /Calculate/i }))
@@ -104,7 +107,7 @@ describe('PudimScore - All Rank Calculations', () => {
     }
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     await user.type(screen.getByPlaceholderText('GitHub Username'), 'sweet')
     await user.click(screen.getByRole('button', { name: /Calculate/i }))
@@ -139,7 +142,7 @@ describe('PudimScore - All Rank Calculations', () => {
     }
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     await user.type(screen.getByPlaceholderText('GitHub Username'), 'homemade')
     await user.click(screen.getByRole('button', { name: /Calculate/i }))
@@ -174,7 +177,7 @@ describe('PudimScore - All Rank Calculations', () => {
     }
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     await user.type(screen.getByPlaceholderText('GitHub Username'), 'newbie')
     await user.click(screen.getByRole('button', { name: /Calculate/i }))
@@ -209,7 +212,7 @@ describe('PudimScore - All Rank Calculations', () => {
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
     vi.mocked(wouldQualifyForTop10).mockResolvedValue(false) // Don't qualify, so share buttons show outside consent block
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     await user.type(screen.getByPlaceholderText('GitHub Username'), 'testuser')
     await user.click(screen.getByRole('button', { name: /Calculate/i }))

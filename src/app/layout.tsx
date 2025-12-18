@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { EnvProvider } from "@/contexts/EnvContext";
+import { LeaderboardRefreshProvider } from "@/contexts/LeaderboardRefreshContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -93,11 +95,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Check if leaderboard should be displayed
-  const leaderboardEnabled = process.env.LEADERBOARD_ENABLED === 'true'
-  const dynamodbEnabled = process.env.DYNAMODB_ENABLED === 'true'
-  const showLeaderboard = leaderboardEnabled && dynamodbEnabled
-
   return (
     <html lang="en">
       <body
@@ -111,11 +108,15 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
         />
-        <Navbar showLeaderboard={showLeaderboard} />
-        <div className="flex-1">
-          {children}
-        </div>
-        <Footer />
+        <EnvProvider>
+          <LeaderboardRefreshProvider>
+            <Navbar />
+            <div className="flex-1">
+              {children}
+            </div>
+            <Footer />
+          </LeaderboardRefreshProvider>
+        </EnvProvider>
       </body>
     </html>
   );
