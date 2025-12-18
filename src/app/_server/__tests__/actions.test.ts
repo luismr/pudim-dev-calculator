@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getPudimScore, getTopScores } from '../actions'
+import { getPudimScore, getTopScores, updateLeaderboardConsent, wouldQualifyForTop10 } from '../actions'
 import { getGithubStats } from '@/lib/pudim/github'
 import { calculatePudimScore } from '@/lib/pudim/score'
-import { savePudimScore, getTop10Scores } from '@/lib/dynamodb'
+import { savePudimScore, getTop10Scores, updateConsentForLatestScore } from '@/lib/dynamodb'
 
 // Mock the dependencies
 vi.mock('@/lib/pudim/github')
@@ -137,6 +137,9 @@ describe('getPudimScore', () => {
 describe('getTopScores', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Set required environment variables for leaderboard tests
+    process.env.LEADERBOARD_ENABLED = 'true'
+    process.env.DYNAMODB_ENABLED = 'true'
   })
 
   it('returns top 10 scores from DynamoDB', async () => {
@@ -199,5 +202,146 @@ describe('getTopScores', () => {
     const result = await getTopScores()
 
     expect(result).toEqual([])
+  })
+
+  it('returns error when leaderboard is not enabled', async () => {
+    process.env.LEADERBOARD_ENABLED = 'false'
+    process.env.DYNAMODB_ENABLED = 'true'
+
+    const result = await getTopScores()
+
+    expect(result).toEqual({ error: 'Leaderboard is not enabled' })
+  })
+
+  it('returns error when DynamoDB is not enabled', async () => {
+    process.env.LEADERBOARD_ENABLED = 'true'
+    process.env.DYNAMODB_ENABLED = 'false'
+
+    const result = await getTopScores()
+
+    expect(result).toEqual({ error: 'Leaderboard is not enabled' })
+  })
+})
+
+describe('updateLeaderboardConsent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('updates consent and returns position when user qualifies', async () => {
+    const mockTopScores = [
+      { username: 'user1', score: 1500, timestamp: '2023-12-17T10:00:00.000Z', rank: { rank: 'S+', title: 'Legendary Flan', description: '', emoji: '🍮✨', color: 'text-amber-500' }, avatar_url: '', followers: 500, total_stars: 600, public_repos: 100 },
+      { username: 'testuser', score: 1200, timestamp: '2023-12-17T09:00:00.000Z', rank: { rank: 'S', title: 'Master Pudim', description: '', emoji: '🍮', color: 'text-yellow-600' }, avatar_url: '', followers: 200, total_stars: 300, public_repos: 50 },
+    ]
+
+    vi.mocked(updateConsentForLatestScore).mockResolvedValue(undefined)
+    vi.mocked(getTop10Scores).mockResolvedValue(mockTopScores)
+
+    const result = await updateLeaderboardConsent('testuser', true)
+
+    expect(result).toEqual({ success: true, position: 2 })
+    expect(updateConsentForLatestScore).toHaveBeenCalledWith('testuser', true)
+  })
+
+  it('updates consent and returns undefined position when user not in top 10', async () => {
+    const mockTopScores = [
+      { username: 'user1', score: 1500, timestamp: '2023-12-17T10:00:00.000Z', rank: { rank: 'S+', title: 'Legendary Flan', description: '', emoji: '🍮✨', color: 'text-amber-500' }, avatar_url: '', followers: 500, total_stars: 600, public_repos: 100 },
+    ]
+
+    vi.mocked(updateConsentForLatestScore).mockResolvedValue(undefined)
+    vi.mocked(getTop10Scores).mockResolvedValue(mockTopScores)
+
+    const result = await updateLeaderboardConsent('testuser', true)
+
+    expect(result).toEqual({ success: true })
+    expect(updateConsentForLatestScore).toHaveBeenCalledWith('testuser', true)
+  })
+
+  it('handles errors when updating consent fails', async () => {
+    vi.mocked(updateConsentForLatestScore).mockRejectedValue(new Error('DynamoDB error'))
+
+    await expect(updateLeaderboardConsent('testuser', true)).rejects.toThrow('DynamoDB error')
+  })
+})
+
+describe('wouldQualifyForTop10', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.LEADERBOARD_ENABLED = 'true'
+    process.env.DYNAMODB_ENABLED = 'true'
+  })
+
+  it('returns false when leaderboard is not enabled', async () => {
+    process.env.LEADERBOARD_ENABLED = 'false'
+
+    const result = await wouldQualifyForTop10(1500)
+
+    expect(result).toBe(false)
+  })
+
+  it('returns false when DynamoDB is not enabled', async () => {
+    process.env.DYNAMODB_ENABLED = 'false'
+
+    const result = await wouldQualifyForTop10(1500)
+
+    expect(result).toBe(false)
+  })
+
+  it('returns true when score is higher than 10th place', async () => {
+    const mockTopScores = Array.from({ length: 10 }, (_, i) => ({
+      username: `user${i + 1}`,
+      score: 1000 - i * 50,
+      timestamp: '2023-12-17T10:00:00.000Z',
+      rank: { rank: 'S', title: 'Master Pudim', description: '', emoji: '🍮', color: 'text-yellow-600' },
+      avatar_url: '',
+      followers: 100,
+      total_stars: 200,
+      public_repos: 20,
+    }))
+
+    vi.mocked(getTop10Scores).mockResolvedValue(mockTopScores)
+
+    const result = await wouldQualifyForTop10(1500)
+
+    expect(result).toBe(true)
+  })
+
+  it('returns false when score is lower than 10th place', async () => {
+    const mockTopScores = Array.from({ length: 10 }, (_, i) => ({
+      username: `user${i + 1}`,
+      score: 1000 - i * 50,
+      timestamp: '2023-12-17T10:00:00.000Z',
+      rank: { rank: 'S', title: 'Master Pudim', description: '', emoji: '🍮', color: 'text-yellow-600' },
+      avatar_url: '',
+      followers: 100,
+      total_stars: 200,
+      public_repos: 20,
+    }))
+
+    vi.mocked(getTop10Scores).mockResolvedValue(mockTopScores)
+
+    const result = await wouldQualifyForTop10(100)
+
+    expect(result).toBe(false)
+  })
+
+  it('returns true when there are fewer than 10 scores', async () => {
+    const mockTopScores = [
+      { username: 'user1', score: 500, timestamp: '2023-12-17T10:00:00.000Z', rank: { rank: 'S', title: 'Master Pudim', description: '', emoji: '🍮', color: 'text-yellow-600' }, avatar_url: '', followers: 100, total_stars: 200, public_repos: 20 },
+    ]
+
+    vi.mocked(getTop10Scores).mockResolvedValue(mockTopScores)
+
+    const result = await wouldQualifyForTop10(100)
+
+    expect(result).toBe(true)
+  })
+
+  it('returns false when error occurs', async () => {
+    vi.mocked(getTop10Scores).mockRejectedValue(new Error('DynamoDB error'))
+
+    const result = await wouldQualifyForTop10(1500)
+
+    expect(result).toBe(false)
   })
 })

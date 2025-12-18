@@ -116,11 +116,9 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       const result = await getCachedStats('testuser')
       
       expect(result).toBeNull()
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[Redis Cache] Error reading from cache:', expect.objectContaining({
-        username: 'testuser',
-        error: 'Connection failed',
-        timestamp: expect.any(String),
-      }))
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"message":"[Redis Cache] Error reading from cache"')
+      )
       expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Redis circuit breaker opened'))
       
       consoleErrorSpy.mockRestore()
@@ -225,12 +223,9 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       // Should not throw
       await expect(setCachedStats('testuser', stats)).resolves.not.toThrow()
       
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[Redis Cache] Error writing to cache:', expect.objectContaining({
-        username: 'testuser',
-        error: 'Write failed',
-        error_name: 'Error',
-        timestamp: expect.any(String),
-      }))
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"message":"[Redis Cache] Error writing to cache"')
+      )
       expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Redis circuit breaker opened'))
       
       consoleErrorSpy.mockRestore()
@@ -318,7 +313,9 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       // Close should not throw
       await expect(closeRedisConnection()).resolves.not.toThrow()
       
-      expect(consoleWarnSpy).toHaveBeenCalledWith('Error closing Redis connection:', expect.any(Error))
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"message":"Error closing Redis connection"')
+      )
       
       consoleWarnSpy.mockRestore()
     })
@@ -347,8 +344,10 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       const result = await getCachedStats('testuser')
       
       expect(result).toBeNull()
-      expect(consoleErrorSpy).toHaveBeenCalled()
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Redis circuit breaker opened'))
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"message":"Redis connection error"')
+      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('"message":"Redis circuit breaker opened"'))
       
       consoleErrorSpy.mockRestore()
       consoleWarnSpy.mockRestore()
@@ -368,7 +367,7 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       await getCachedStats('testuser')
       
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Will retry after 5 seconds')
+        expect.stringContaining('"cooldown_seconds":5')
       )
       
       consoleWarnSpy.mockRestore()
@@ -501,8 +500,10 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       const result = await getCachedBadge('testuser')
       
       expect(result).toBeNull()
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Error reading badge from Redis cache:', expect.any(Error))
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Redis circuit breaker opened'))
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"message":"Error reading badge from Redis cache"')
+      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('"message":"Redis circuit breaker opened"'))
       
       consoleErrorSpy.mockRestore()
       consoleWarnSpy.mockRestore()
@@ -577,8 +578,10 @@ describe('Redis Cache Unit Tests (Mocked)', () => {
       // Should not throw
       await expect(setCachedBadge('testuser', imageBuffer)).resolves.not.toThrow()
       
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Error writing badge to Redis cache:', expect.any(Error))
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Redis circuit breaker opened'))
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"message":"Error writing badge to Redis cache"')
+      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('"message":"Redis circuit breaker opened"'))
       
       consoleErrorSpy.mockRestore()
       consoleWarnSpy.mockRestore()

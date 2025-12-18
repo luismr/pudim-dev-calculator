@@ -38,6 +38,10 @@ class MockQueryCommand {
   constructor(public params: unknown) {}
 }
 
+class MockUpdateCommand {
+  constructor(public input: unknown) {}
+}
+
 class MockScanCommand {
   constructor(public params: unknown) {}
 }
@@ -62,6 +66,7 @@ vi.mock('@aws-sdk/lib-dynamodb', () => ({
   PutCommand: MockPutCommand,
   QueryCommand: MockQueryCommand,
   ScanCommand: MockScanCommand,
+  UpdateCommand: MockUpdateCommand,
 }))
 
 describe('DynamoDB Service Unit Tests (Mocked)', () => {
@@ -254,6 +259,7 @@ describe('DynamoDB Service Unit Tests (Mocked)', () => {
           score: 1500,
           rank: mockRank,
           stats: { ...mockStats, username: 'user1' },
+          leaderboard_consent: true,
         },
         {
           username: 'user2',
@@ -261,6 +267,7 @@ describe('DynamoDB Service Unit Tests (Mocked)', () => {
           score: 800,
           rank: mockRank,
           stats: { ...mockStats, username: 'user2' },
+          leaderboard_consent: true,
         },
         {
           username: 'user3',
@@ -268,6 +275,7 @@ describe('DynamoDB Service Unit Tests (Mocked)', () => {
           score: 600,
           rank: mockRank,
           stats: { ...mockStats, username: 'user3' },
+          leaderboard_consent: true,
         },
       ]
 
@@ -291,6 +299,7 @@ describe('DynamoDB Service Unit Tests (Mocked)', () => {
           score: 1500,
           rank: mockRank,
           stats: { ...mockStats, username: 'user1' },
+          leaderboard_consent: true,
         },
         {
           username: 'user1',
@@ -298,6 +307,7 @@ describe('DynamoDB Service Unit Tests (Mocked)', () => {
           score: 1000,
           rank: mockRank,
           stats: { ...mockStats, username: 'user1' },
+          leaderboard_consent: true,
         },
       ]
 
@@ -320,6 +330,7 @@ describe('DynamoDB Service Unit Tests (Mocked)', () => {
         score: 1000 - i * 10,
         rank: mockRank,
         stats: { ...mockStats, username: `user${i}` },
+        leaderboard_consent: true,
       }))
 
       mockSend
@@ -339,6 +350,7 @@ describe('DynamoDB Service Unit Tests (Mocked)', () => {
         score: 1500,
         rank: mockRank,
         stats: mockStats,
+        leaderboard_consent: true,
       }
 
       mockSend
@@ -436,6 +448,106 @@ describe('DynamoDB Service Unit Tests (Mocked)', () => {
       for (let i = 0; i < result.length - 1; i++) {
         expect(result[i].timestamp >= result[i + 1].timestamp).toBe(true)
       }
+    })
+  })
+
+  describe('updateConsentForLatestScore', () => {
+    beforeEach(() => {
+      process.env.DYNAMODB_ENABLED = 'true'
+      process.env.AWS_REGION = 'us-east-1'
+      process.env.AWS_ACCESS_KEY_ID = 'test'
+      process.env.AWS_SECRET_ACCESS_KEY = 'test'
+    })
+
+    it('should update consent for latest score', async () => {
+      const mockLatestScore = {
+        username: 'testuser',
+        timestamp: '2025-12-17T10:00:00.000Z',
+        score: 1500,
+        rank: mockRank,
+        stats: mockStats,
+        leaderboard_consent: false,
+      }
+
+      // ensureTableExists (in updateConsentForLatestScore) -> DescribeTableCommand
+      // ensureTableExists (in getUserLatestScore) -> DescribeTableCommand  
+      // getUserLatestScore -> QueryCommand
+      // updateConsentForLatestScore -> UpdateCommand
+      mockSend
+        .mockResolvedValueOnce({ Table: { TableName: 'PudimScores' } }) // ensureTableExists in updateConsentForLatestScore
+        .mockResolvedValueOnce({ Table: { TableName: 'PudimScores' } }) // ensureTableExists in getUserLatestScore
+        .mockResolvedValueOnce({ Items: [mockLatestScore] }) // getUserLatestScore QueryCommand
+        .mockResolvedValueOnce({}) // UpdateCommand response
+
+      const { updateConsentForLatestScore } = await import('../dynamodb')
+      await updateConsentForLatestScore('testuser', true)
+
+      expect(mockSend).toHaveBeenCalledTimes(4)
+      const updateCall = mockSend.mock.calls[3][0]
+      expect(updateCall).toBeInstanceOf(MockUpdateCommand)
+      const updateParams = updateCall.input as { UpdateExpression: string; ExpressionAttributeValues: Record<string, boolean> }
+      expect(updateParams.UpdateExpression).toBe('SET leaderboard_consent = :consent')
+      expect(updateParams.ExpressionAttributeValues).toEqual({
+        ':consent': true,
+      })
+    })
+
+    it('should do nothing when DynamoDB is disabled', async () => {
+      process.env.DYNAMODB_ENABLED = 'false'
+
+      const { updateConsentForLatestScore } = await import('../dynamodb')
+      await updateConsentForLatestScore('testuser', true)
+
+      expect(mockSend).not.toHaveBeenCalled()
+    })
+
+    it('should do nothing when table does not exist', async () => {
+      vi.clearAllMocks()
+      // ensureTableExists returns false (no table) - DescribeTableCommand fails
+      mockSend.mockRejectedValueOnce(new Error('Table not found'))
+
+      const { updateConsentForLatestScore } = await import('../dynamodb')
+      await updateConsentForLatestScore('testuser', true)
+
+      // Only ensureTableExists is called (DescribeTableCommand), then it returns early
+      expect(mockSend).toHaveBeenCalledTimes(1)
+    })
+
+    it('should do nothing when no score found for user', async () => {
+      vi.clearAllMocks()
+      mockSend
+        .mockResolvedValueOnce({ Table: { TableName: 'PudimScores' } }) // ensureTableExists in updateConsentForLatestScore
+        .mockResolvedValueOnce({ Table: { TableName: 'PudimScores' } }) // ensureTableExists in getUserLatestScore
+        .mockResolvedValueOnce({ Items: [] }) // getUserLatestScore QueryCommand (no items)
+
+      const { updateConsentForLatestScore } = await import('../dynamodb')
+      await updateConsentForLatestScore('testuser', true)
+
+      // ensureTableExists (2x DescribeTableCommand) + getUserLatestScore (QueryCommand), then returns early
+      expect(mockSend).toHaveBeenCalledTimes(3)
+    })
+
+    it('should handle errors and open circuit breaker', async () => {
+      vi.clearAllMocks()
+      const mockLatestScore = {
+        username: 'testuser',
+        timestamp: '2025-12-17T10:00:00.000Z',
+        score: 1500,
+        rank: mockRank,
+        stats: mockStats,
+        leaderboard_consent: false,
+      }
+
+      mockSend
+        .mockResolvedValueOnce({ Table: { TableName: 'PudimScores' } }) // ensureTableExists in updateConsentForLatestScore
+        .mockResolvedValueOnce({ Table: { TableName: 'PudimScores' } }) // ensureTableExists in getUserLatestScore
+        .mockResolvedValueOnce({ Items: [mockLatestScore] }) // getUserLatestScore QueryCommand
+        .mockRejectedValueOnce(new Error('Update failed')) // UpdateCommand fails
+
+      const { updateConsentForLatestScore } = await import('../dynamodb')
+      
+      await expect(updateConsentForLatestScore('testuser', true)).rejects.toThrow('Update failed')
+      expect(mockSend).toHaveBeenCalledTimes(4)
     })
   })
 

@@ -12,11 +12,11 @@ export async function getGithubStats(
     // Check cache first if Redis is enabled
     const cachedStats = await getCachedStats(username)
     if (cachedStats) {
-      console.log(`[GitHub Stats] Using cached data for user "${username}"`)
+      console.log(JSON.stringify({ level: 'info', message: '[GitHub Stats] Using cached data', username }))
       return cachedStats
     }
     
-    console.log(`[GitHub Stats] Fetching from GitHub API for user "${username}"`)
+    console.log(JSON.stringify({ level: 'info', message: '[GitHub Stats] Fetching from GitHub API', username }))
 
     const userResponse = await fetch(`https://api.github.com/users/${username}`, {
       next: { revalidate: 3600 },
@@ -26,14 +26,7 @@ export async function getGithubStats(
       const statusText = userResponse.statusText || 'Unknown error'
       const responseBody = await userResponse.text().catch(() => 'Unable to read response body')
       
-      console.error(`[GitHub Stats] GitHub API error for user "${username}":`, {
-        status: userResponse.status,
-        status_text: statusText,
-        response_body: responseBody,
-        username,
-        timestamp: new Date().toISOString(),
-        url: `https://api.github.com/users/${username}`,
-      })
+      console.error(JSON.stringify({ level: 'error', message: '[GitHub Stats] GitHub API error', status: userResponse.status, status_text: statusText, response_body: responseBody, username, timestamp: new Date().toISOString(), url: `https://api.github.com/users/${username}` }))
       
       if (userResponse.status === 404) {
         return { error: 'User not found' }
@@ -94,10 +87,12 @@ export async function getGithubStats(
     }
 
     // Cache the result if Redis is enabled (fire and forget)
-    console.log(`[GitHub Stats] Saving to cache for user "${username}"`)
+    console.log(JSON.stringify({ level: 'info', message: '[GitHub Stats] Saving to cache', username }))
     setCachedStats(username, stats).catch((error) => {
       // Log but don't throw - caching failures shouldn't break the app
-      console.error(`[GitHub Stats] Failed to cache stats for user "${username}":`, error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorName = error instanceof Error ? error.name : typeof error
+      console.error(JSON.stringify({ level: 'error', message: '[GitHub Stats] Failed to cache stats', username, error: errorMessage, error_name: errorName }))
     })
 
     return stats
@@ -108,20 +103,13 @@ export async function getGithubStats(
     const errorStack = error instanceof Error ? error.stack : undefined
     const timestamp = new Date().toISOString()
     
-    console.error(`[GitHub Stats] Failed to fetch stats for user "${username}":`, {
-      error: errorMessage,
-      error_name: errorName,
-      error_code: errorCode,
-      error_type: error?.constructor?.name || typeof error,
-      stack: errorStack,
-      username,
-      timestamp,
-      error_details: error instanceof Error ? {
-        message: error.message,
-        name: error.name,
-        ...(error.cause && typeof error.cause === 'object' ? { cause: error.cause } : {}),
-      } : { raw_error: String(error) },
-    })
+    const errorDetails = error instanceof Error ? {
+      message: error.message,
+      name: error.name,
+      ...(error.cause && typeof error.cause === 'object' ? { cause: error.cause } : {}),
+    } : { raw_error: String(error) }
+    
+    console.error(JSON.stringify({ level: 'error', message: '[GitHub Stats] Failed to fetch stats', error: errorMessage, error_name: errorName, error_code: errorCode, error_type: error?.constructor?.name || typeof error, stack: errorStack, username, timestamp, error_details: errorDetails }))
     
     // Return user-friendly error message based on error type
     if (error instanceof TypeError && error.message.includes('fetch')) {

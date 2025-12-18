@@ -4,8 +4,14 @@ import { Badge } from "@/components/ui/badge"
 import { Code, Zap, Calculator, Link2, Image as ImageIcon, Trophy, Star, Users, GitFork } from "lucide-react"
 import Link from "next/link"
 import { PudimScore } from "@/components/PudimScore"
+import { Leaderboard } from "@/components/Leaderboard"
 
 export default function Home() {
+  // Check if leaderboard should be displayed
+  const leaderboardEnabled = process.env.LEADERBOARD_ENABLED === 'true'
+  const dynamodbEnabled = process.env.DYNAMODB_ENABLED === 'true'
+  const showLeaderboard = leaderboardEnabled && dynamodbEnabled
+
   // WebPage structured data
   const webPageSchema = {
     "@context": "https://schema.org",
@@ -94,6 +100,24 @@ export default function Home() {
           <PudimScore />
         </div>
       </section>
+
+      {/* Leaderboard Section */}
+      {showLeaderboard && (
+        <section id="leaderboard" className="w-full py-12 md:py-24 lg:py-32 bg-background scroll-mt-14">
+          <div className="container px-4 md:px-6 mx-auto text-center">
+            <div className="flex flex-col items-center justify-center space-y-4 mb-8">
+              <Badge variant="secondary" className="rounded-full">Leaderboard</Badge>
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">
+                Top 10 Pudim Scores
+              </h2>
+              <p className="max-w-[600px] text-muted-foreground md:text-xl/relaxed">
+                See who has the sweetest developer profile on GitHub
+              </p>
+            </div>
+            <Leaderboard />
+          </div>
+        </section>
+      )}
 
       {/* Features Section */}
       <section id="features" className="w-full py-12 md:py-24 lg:py-32 bg-background scroll-mt-14">

@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { getPudimScore, type PudimScoreResult } from "@/app/_server/actions"
-import { Loader2, Star, Users, GitFork, Info, Share2 } from "lucide-react"
+import { getPudimScore, updateLeaderboardConsent, wouldQualifyForTop10, type PudimScoreResult } from "@/app/_server/actions"
+import { Loader2, Star, Users, GitFork, Info, Share2, Trophy, User, Award, Code } from "lucide-react"
 
 // Map popular languages to colors (simplified map)
 const languageColors: Record<string, string> = {
@@ -40,6 +41,13 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
   const [result, setResult] = useState<PudimScoreResult | null>(null)
   const [error, setError] = useState("")
   const [showRankInfo, setShowRankInfo] = useState(false)
+  const [leaderboardConsent, setLeaderboardConsent] = useState(false)
+  const [savingConsent, setSavingConsent] = useState(false)
+  const [qualifiesForTop10, setQualifiesForTop10] = useState(false)
+  const [checkingQualification, setCheckingQualification] = useState(false)
+  const [consentSaved, setConsentSaved] = useState(false)
+  const [rankingPosition, setRankingPosition] = useState<number | null>(null)
+  const [showToast, setShowToast] = useState(false)
 
   const loadStats = useCallback(async (usernameToLoad: string) => {
     if (!usernameToLoad.trim()) return
@@ -47,53 +55,28 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
     setLoading(true)
     setError("")
     setResult(null)
-
-    const startTime = Date.now()
-    const timestamp = new Date().toISOString()
     
     try {
-      console.log(`[PudimScore Component] Starting calculation for user "${usernameToLoad}" at ${timestamp}`)
-      
       const data = await getPudimScore(usernameToLoad)
       
       if ('error' in data) {
-        console.error(`[PudimScore Component] Error response for user "${usernameToLoad}":`, {
-          error: data.error,
-          username: usernameToLoad,
-          timestamp,
-          duration: `${Date.now() - startTime}ms`,
-        })
         setError(data.error)
       } else {
-        console.log(`[PudimScore Component] Successfully calculated score for user "${usernameToLoad}":`, {
-          username: data.stats.username,
-          score: Math.round(data.score),
-          rank: data.rank.rank,
-          timestamp,
-          duration: `${Date.now() - startTime}ms`,
-        })
         setResult(data)
+        
+        // Check if user qualifies for top 10
+        setCheckingQualification(true)
+        try {
+          const qualifies = await wouldQualifyForTop10(data.score)
+          setQualifiesForTop10(qualifies)
+        } catch {
+          setQualifiesForTop10(false)
+        } finally {
+          setCheckingQualification(false)
+        }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       const errorName = error instanceof Error ? error.name : typeof error
-      const errorCode = error && typeof error === 'object' && 'code' in error ? (error as { code?: string }).code : undefined
-      
-      console.error(`[PudimScore Component] Unexpected error for user "${usernameToLoad}":`, {
-        error: errorMessage,
-        error_name: errorName,
-        error_code: errorCode,
-        error_type: error?.constructor?.name || typeof error,
-        stack: error instanceof Error ? error.stack : undefined,
-        username: usernameToLoad,
-        timestamp,
-        duration: `${Date.now() - startTime}ms`,
-        error_details: error instanceof Error ? {
-          message: error.message,
-          name: error.name,
-          ...(error.cause && typeof error.cause === 'object' ? { cause: error.cause } : {}),
-        } : { raw_error: String(error) },
-      })
       
       // Provide more specific error message based on error type
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -289,6 +272,11 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
                 <span className="font-bold text-sm leading-tight">{result.stats.public_repos}</span>
                 <span className="text-[9px] text-muted-foreground uppercase leading-tight">Repos</span>
               </div>
+              <div className="flex flex-col items-center px-1">
+                <Trophy className="h-3.5 w-3.5 text-primary mb-0.5" />
+                <span className="font-bold text-sm leading-tight">{Math.round(result.score)}</span>
+                <span className="text-[9px] text-muted-foreground uppercase leading-tight">Score</span>
+              </div>
             </div>
 
             {/* Languages / Flavors Section */}
@@ -326,6 +314,146 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {result && qualifiesForTop10 && (
+        <>
+          {/* Leaderboard Consent Section - Only shown if user qualifies for top 10 */}
+          <Card className="mt-3 h-full">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Trophy className="h-10 w-10 text-primary" />
+                <CardTitle>Join the Leaderboard</CardTitle>
+              </div>
+              <CardDescription className="mt-2 text-left">
+                Your score of <Badge variant="default" className="font-bold">{Math.round(result.score)}</Badge> <Badge variant="secondary" className={result.rank.color}>{result.rank.title}</Badge> qualifies for the top 10! Opt in to appear in the leaderboard.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-left">Leaderboard Includes:</p>
+                <ul className="text-sm text-muted-foreground space-y-2">
+                  <li className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-primary" />
+                    <span>Your GitHub avatar</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Award className="h-4 w-4 text-primary" />
+                    <span>Rank and title</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-primary" />
+                    <span>Stars, followers & repos</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Code className="h-4 w-4 text-primary" />
+                    <span>Your calculated score</span>
+                  </li>
+                </ul>
+              </div>
+              {!consentSaved && (
+                <>
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    <input
+                      type="checkbox"
+                      id="leaderboard-consent"
+                      checked={leaderboardConsent}
+                      onChange={(e) => setLeaderboardConsent(e.target.checked)}
+                      disabled={savingConsent || checkingQualification}
+                      className="h-4 w-4 rounded border-primary text-primary focus:ring-primary"
+                    />
+                    <label htmlFor="leaderboard-consent" className="text-sm text-muted-foreground cursor-pointer flex-1">
+                      I consent to appear in the leaderboard
+                    </label>
+                  </div>
+                  {leaderboardConsent && (
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        if (!result) return
+                        setSavingConsent(true)
+                        try {
+                          const response = await updateLeaderboardConsent(
+                            result.stats.username,
+                            true
+                          )
+                          if (response.success) {
+                            setConsentSaved(true)
+                            setShowToast(true)
+                            if (response.position) {
+                              setRankingPosition(response.position)
+                            }
+                            // Hide toast after 3 seconds
+                            setTimeout(() => setShowToast(false), 3000)
+                          }
+                        } catch {
+                          setLeaderboardConsent(false)
+                        } finally {
+                          setSavingConsent(false)
+                        }
+                      }}
+                      disabled={savingConsent}
+                      className="w-full"
+                    >
+                      {savingConsent ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save & Join Leaderboard'
+                      )}
+                    </Button>
+                  )}
+                </>
+              )}
+              {consentSaved && (
+                <div className="pt-2 border-t">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-primary" />
+                    <span className="text-sm text-muted-foreground">Your ranking:</span>
+                    {rankingPosition ? (
+                      <Badge variant="default" className="font-bold">
+                        #{rankingPosition}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="font-bold">
+                        In Top 10
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Toast Notification */}
+          {showToast && (
+            <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
+              <Card className="border-primary/20 shadow-lg max-w-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Trophy className="h-5 w-5 text-primary-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="font-semibold text-card-foreground mb-1 text-left">Success!</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed text-left">
+                        You&apos;ve been added to the leaderboard{rankingPosition ? ` at position ` : ''}
+                        {rankingPosition && (
+                          <Badge variant="default" className="ml-1 font-bold">
+                            #{rankingPosition}
+                          </Badge>
+                        )}
+                        {!rankingPosition && '!'}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </>
       )}
 
       {result && (

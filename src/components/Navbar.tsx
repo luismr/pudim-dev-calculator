@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 
-export function Navbar() {
+interface NavbarProps {
+  showLeaderboard?: boolean
+}
+
+export function Navbar({ showLeaderboard = false }: NavbarProps) {
   const [open, setOpen] = useState(false)
 
   const navLinks = [
@@ -15,6 +19,11 @@ export function Navbar() {
     { href: "/#ranking", label: "Ranking" },
     { href: "/#philosophy", label: "Philosophy" },
   ]
+
+  // Add leaderboard link if enabled
+  if (showLeaderboard) {
+    navLinks.unshift({ href: "/#leaderboard", label: "Leaderboard" })
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
