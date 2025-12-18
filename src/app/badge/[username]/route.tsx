@@ -113,7 +113,7 @@ export async function GET(
     }
 
     // Calculate score using server-side business rule
-    const { rank } = calculatePudimScore(stats as GitHubStats)
+    const { score, rank } = calculatePudimScore(stats as GitHubStats)
     const topLanguages = stats.languages?.slice(0, 5) || []
     
     // Map Tailwind color class to hex for badge rendering
@@ -230,6 +230,9 @@ export async function GET(
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', fontSize: 36, color: '#fbbf24' }}>
+                  ⭐
+                </div>
                 <div style={{ display: 'flex', fontSize: 48, fontWeight: 'bold', color: '#1f2937' }}>
                   {stats.total_stars}
                 </div>
@@ -238,6 +241,9 @@ export async function GET(
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', fontSize: 36, color: '#3b82f6' }}>
+                  👥
+                </div>
                 <div style={{ display: 'flex', fontSize: 48, fontWeight: 'bold', color: '#1f2937' }}>
                   {stats.followers}
                 </div>
@@ -246,11 +252,25 @@ export async function GET(
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', fontSize: 36, color: '#a855f7' }}>
+                  🍴
+                </div>
                 <div style={{ display: 'flex', fontSize: 48, fontWeight: 'bold', color: '#1f2937' }}>
                   {stats.public_repos}
                 </div>
                 <div style={{ display: 'flex', fontSize: 20, color: '#6b7280', textTransform: 'uppercase' }}>
                   REPOS
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', fontSize: 36, color: '#d97706' }}>
+                  🏆
+                </div>
+                <div style={{ display: 'flex', fontSize: 48, fontWeight: 'bold', color: '#1f2937' }}>
+                  {Math.round(score)}
+                </div>
+                <div style={{ display: 'flex', fontSize: 20, color: '#6b7280', textTransform: 'uppercase' }}>
+                  SCORE
                 </div>
               </div>
             </div>
@@ -328,24 +348,29 @@ export async function GET(
       }
     )
 
-    // Cache the generated image in Redis (fire and forget)
-    // Convert ImageResponse to buffer for caching
+    // Convert ImageResponse to buffer for caching and response
     const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+    
+    // Cache the generated image in Redis (fire and forget)
     setCachedBadge(decodedUsername, imageBuffer).catch((error) => {
       // Log but don't throw - caching failures shouldn't break the app
-      console.error('Failed to cache badge image:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorName = error instanceof Error ? error.name : typeof error
+      console.error(JSON.stringify({ level: 'error', message: 'Failed to cache badge image', username: decodedUsername, error: errorMessage, error_name: errorName }))
     })
 
-    // Add cache headers for CDN and browser caching
-    imageResponse.headers.set(
-      'Cache-Control',
-      'public, max-age=300, s-maxage=300, stale-while-revalidate=60'
-    )
-    imageResponse.headers.set('CDN-Cache-Control', 'public, max-age=300')
-
-    return imageResponse
+    // Return new Response from buffer (since ImageResponse stream is consumed)
+    return new Response(imageBuffer, {
+      headers: {
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=60',
+        'CDN-Cache-Control': 'public, max-age=300',
+      },
+    })
   } catch (error) {
-    console.error('Badge generation error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Badge generation error', error: errorMessage, error_name: errorName }))
     const errorResponse = new ImageResponse(
       (
         <div

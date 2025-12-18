@@ -342,9 +342,48 @@ describe('getGithubStats', () => {
     expect(result).toMatchObject({
       username: 'testuser',
     })
-    expect(consoleErrorSpy).toHaveBeenCalledWith('[GitHub Stats] Failed to cache stats for user "testuser":', expect.any(Error))
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('"message":"[GitHub Stats] Failed to cache stats"')
+    )
     
     consoleErrorSpy.mockRestore()
+  })
+
+  it('handles DNS resolution errors', async () => {
+    const error = new Error('getaddrinfo ENOTFOUND api.github.com')
+    ;(error as { code?: string }).code = 'ENOTFOUND'
+    
+    getCachedStats.mockResolvedValue(null)
+    vi.mocked(global.fetch).mockRejectedValue(error)
+
+    const result = await getGithubStats('testuser')
+
+    expect(result).toEqual({
+      error: 'DNS resolution failed. Please check your internet connection.',
+    })
+  })
+
+  it('handles timeout errors', async () => {
+    const error = new Error('timeout after 30 seconds')
+    getCachedStats.mockResolvedValue(null)
+    vi.mocked(global.fetch).mockRejectedValue(error)
+
+    const result = await getGithubStats('testuser')
+
+    expect(result).toHaveProperty('error')
+    expect((result as { error: string }).error).toBe('Request timed out. Please try again.')
+  })
+
+  it('handles network fetch errors', async () => {
+    const error = new TypeError('fetch failed')
+    getCachedStats.mockResolvedValue(null)
+    vi.mocked(global.fetch).mockRejectedValue(error)
+
+    const result = await getGithubStats('testuser')
+
+    expect(result).toEqual({
+      error: 'Network error. Please check your connection and try again.',
+    })
   })
 })
 

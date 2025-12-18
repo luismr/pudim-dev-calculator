@@ -302,7 +302,7 @@ describe('Redis Cache Integration', () => {
       // Circuit breaker should open after connection attempts fail
       expect(consoleErrorSpy).toHaveBeenCalled()
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Redis circuit breaker opened.')
+        expect.stringContaining('"message":"Redis circuit breaker opened"')
       )
       // Reset URL for subsequent tests
       process.env.REDIS_URL = 'redis://localhost:6379'
@@ -373,7 +373,7 @@ describe('Redis Cache Integration', () => {
       await getCachedStats('testuser') // This opens the circuit breaker
       expect(consoleErrorSpy).toHaveBeenCalled()
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Redis circuit breaker opened.')
+        expect.stringContaining('"message":"Redis circuit breaker opened"')
       )
       process.env.REDIS_URL = 'redis://localhost:6379' // Restore URL
       vi.clearAllMocks()
@@ -576,6 +576,139 @@ describe('Redis Cache Integration', () => {
       
       expect(retrievedBuffer).not.toBeNull()
       expect(retrievedBuffer!.equals(originalBuffer)).toBe(true)
+    })
+
+    it('handles cache read errors gracefully for badges', async () => {
+      // Create a client first and set a badge
+      const { setCachedBadge, closeRedisConnection } = await reImportRedisModule()
+      await setCachedBadge('error-read-badge', Buffer.from('test-image'))
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Close the connection to break it
+      await closeRedisConnection()
+      
+      // Now try to read - this should trigger the error path
+      // The client will try to reconnect but fail, triggering the catch block
+      const originalUrl = process.env.REDIS_URL
+      process.env.REDIS_URL = 'redis://invalid-host:6379'
+      vi.resetModules()
+      
+      const { getCachedBadge: getCachedBadgeAfterError, closeRedisConnection: closeAfterError } = await reImportRedisModule()
+      
+      // This should handle the error gracefully
+      const result = await getCachedBadgeAfterError('error-read-badge')
+      expect(result).toBeNull()
+      
+      // Clean up
+      await closeAfterError()
+      process.env.REDIS_URL = originalUrl
+      vi.resetModules()
+    })
+
+    it('handles cache write errors gracefully for badges', async () => {
+      // Close any existing connection
+      const { closeRedisConnection } = await reImportRedisModule()
+      await closeRedisConnection()
+      
+      // Use invalid URL to force connection error
+      const originalUrl = process.env.REDIS_URL
+      process.env.REDIS_URL = 'redis://invalid-host:6379'
+      vi.resetModules()
+      
+      const { setCachedBadge, closeRedisConnection: closeAfterError } = await reImportRedisModule()
+      
+      const imageBuffer = Buffer.from('test-image')
+      
+      // This should handle the error gracefully without throwing
+      await expect(setCachedBadge('testuser', imageBuffer)).resolves.not.toThrow()
+      
+      // Clean up
+      await closeAfterError()
+      process.env.REDIS_URL = originalUrl
+      vi.resetModules()
+    })
+  })
+
+  describe('closeRedisConnection error handling', () => {
+    it('handles errors when closing connection gracefully', async () => {
+      const { getCachedStats, closeRedisConnection } = await reImportRedisModule()
+      
+      // Create a client
+      await getCachedStats('testuser')
+      
+      // Manually break the client to simulate an error during quit
+      const redisModule = await import('../redis')
+      // Access the internal client and force an error
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = (redisModule as any).redisClient
+      if (client) {
+        // Mock the quit method to throw an error
+        const originalQuit = client.quit.bind(client)
+        client.quit = vi.fn().mockRejectedValue(new Error('Connection error'))
+        
+        // This should handle the error gracefully (lines 360-362)
+        await expect(closeRedisConnection()).resolves.not.toThrow()
+        
+        // Restore
+        client.quit = originalQuit
+      }
+    })
+  })
+
+  describe('Badge cache error handling (Integration)', () => {
+    it('handles read errors for badge cache', async () => {
+      // Create a client and set a badge first
+      const { setCachedBadge, getCachedBadge, closeRedisConnection } = await reImportRedisModule()
+      await setCachedBadge('error-badge-user', Buffer.from('test-image'))
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Verify it was cached
+      const cached = await getCachedBadge('error-badge-user')
+      expect(cached).not.toBeNull()
+      
+      // Close connection
+      await closeRedisConnection()
+      
+      // Now break the connection by using invalid URL
+      const originalUrl = process.env.REDIS_URL
+      process.env.REDIS_URL = 'redis://invalid-host:6379'
+      
+      vi.resetModules()
+      const { getCachedBadge: getCachedBadgeAfterError, closeRedisConnection: closeAfterError } = await reImportRedisModule()
+      
+      // This should handle the error gracefully (lines 311-312)
+      // The client will try to connect but fail, triggering the catch block
+      const result = await getCachedBadgeAfterError('error-badge-user')
+      expect(result).toBeNull()
+      
+      // Clean up
+      await closeAfterError()
+      process.env.REDIS_URL = originalUrl
+      vi.resetModules()
+    })
+
+    it('handles write errors for badge cache', async () => {
+      // Close any existing connection
+      const { closeRedisConnection } = await reImportRedisModule()
+      await closeRedisConnection()
+      
+      // Use invalid URL to force connection error
+      const originalUrl = process.env.REDIS_URL
+      process.env.REDIS_URL = 'redis://invalid-host:6379'
+      
+      vi.resetModules()
+      const { setCachedBadge, closeRedisConnection: closeAfterError } = await reImportRedisModule()
+      
+      const imageBuffer = Buffer.from('test-image')
+      
+      // This should handle the error gracefully without throwing (lines 339-343)
+      // The client will try to connect but fail, triggering the catch block
+      await expect(setCachedBadge('testuser', imageBuffer)).resolves.not.toThrow()
+      
+      // Clean up
+      await closeAfterError()
+      process.env.REDIS_URL = originalUrl
+      vi.resetModules()
     })
   })
 })

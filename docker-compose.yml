@@ -20,6 +20,7 @@ services:
       - DYNAMODB_ENABLED="true"
       - DYNAMODB_ENDPOINT="http://dynamodb:8000"
       - DYNAMODB_CIRCUIT_BREAKER_COOLDOWN="300000"
+      - LEADERBOARD_ENABLED="true"
       - AWS_REGION="us-east-1"
       - AWS_ACCESS_KEY_ID="local"
       - AWS_SECRET_ACCESS_KEY="local"

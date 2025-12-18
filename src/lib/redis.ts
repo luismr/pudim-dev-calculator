@@ -51,7 +51,9 @@ async function loadRedis(): Promise<RedisConstructor | null> {
     Redis = redisModule.default as any as RedisConstructor
     return Redis
   } catch (error) {
-    console.error('Failed to load ioredis:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Failed to load ioredis', error: errorMessage, error_name: errorName }))
     return null
   }
 }
@@ -81,7 +83,7 @@ function openCircuitBreaker(): void {
   // Cooldown period in milliseconds, default to 5 minutes (300000 ms)
   const cooldownMs = parseInt(process.env.REDIS_CIRCUIT_BREAKER_COOLDOWN || '300000', 10)
   circuitBreakerOpenUntil = Date.now() + cooldownMs
-  console.warn(`Redis circuit breaker opened. Will retry after ${cooldownMs / 1000} seconds.`)
+  console.warn(JSON.stringify({ level: 'warn', message: 'Redis circuit breaker opened', cooldown_seconds: cooldownMs / 1000 }))
 }
 
 /**
@@ -90,7 +92,7 @@ function openCircuitBreaker(): void {
 function closeCircuitBreaker(): void {
   if (circuitBreakerOpenUntil !== null) {
     circuitBreakerOpenUntil = null
-    console.log('Redis circuit breaker closed. Redis is available again.')
+    console.log(JSON.stringify({ level: 'info', message: 'Redis circuit breaker closed. Redis is available again.' }))
   }
 }
 
@@ -166,7 +168,7 @@ async function getRedisClient(): Promise<RedisClient | null> {
       // Handle connection errors gracefully
       redisClient!.on('error', (err: Error) => {
         clearTimeout(timeout)
-        console.error('Redis connection error:', err)
+        console.error(JSON.stringify({ level: 'error', message: 'Redis connection error', error: err.message, error_name: err.name }))
         // Open circuit breaker on connection errors
         openCircuitBreaker()
         reject(err)
@@ -174,19 +176,21 @@ async function getRedisClient(): Promise<RedisClient | null> {
 
       // Handle connection close
       redisClient!.on('close', () => {
-        console.warn('Redis connection closed')
+        console.warn(JSON.stringify({ level: 'warn', message: 'Redis connection closed' }))
       })
 
       // Handle connection end
       redisClient!.on('end', () => {
-        console.warn('Redis connection ended')
+        console.warn(JSON.stringify({ level: 'warn', message: 'Redis connection ended' }))
         openCircuitBreaker()
       })
     })
 
     return redisClient
   } catch (error) {
-    console.error('Failed to create Redis client:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Failed to create Redis client', error: errorMessage, error_name: errorName }))
     openCircuitBreaker()
     redisClient = null
     return null
@@ -228,29 +232,15 @@ export async function getCachedStats(
       // Successfully read from cache, close circuit breaker if it was open
       closeCircuitBreaker()
       const stats = JSON.parse(cached) as GitHubStats
-      console.log(`[Redis Cache] Cache HIT for user "${username}":`, {
-        username,
-        key,
-        followers: stats.followers,
-        total_stars: stats.total_stars,
-        public_repos: stats.public_repos,
-        timestamp: new Date().toISOString(),
-      })
+      console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Cache HIT', username, key, followers: stats.followers, total_stars: stats.total_stars, public_repos: stats.public_repos, timestamp: new Date().toISOString() }))
       return stats
     }
     
-    console.log(`[Redis Cache] Cache MISS for user "${username}":`, {
-      username,
-      key,
-      timestamp: new Date().toISOString(),
-    })
+    console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Cache MISS', username, key, timestamp: new Date().toISOString() }))
     return null
   } catch (error) {
-    console.error('[Redis Cache] Error reading from cache:', {
-      username,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString(),
-    })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error(JSON.stringify({ level: 'error', message: '[Redis Cache] Error reading from cache', username, error: errorMessage, timestamp: new Date().toISOString() }))
     // Open circuit breaker on read errors
     openCircuitBreaker()
     return null
@@ -266,10 +256,7 @@ export async function setCachedStats(
 ): Promise<void> {
   const client = await getRedisClient()
   if (!client) {
-    console.log(`[Redis Cache] Cache SAVE skipped for user "${username}" (Redis disabled or unavailable):`, {
-      username,
-      timestamp: new Date().toISOString(),
-    })
+    console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Cache SAVE skipped', reason: 'Redis disabled or unavailable', username, timestamp: new Date().toISOString() }))
     return
   }
 
@@ -281,22 +268,11 @@ export async function setCachedStats(
     await client.setex(key, ttl, JSON.stringify(stats))
     // Successfully wrote to cache, close circuit breaker if it was open
     closeCircuitBreaker()
-    console.log(`[Redis Cache] Cache SAVE successful for user "${username}":`, {
-      username,
-      key,
-      ttl_seconds: ttl,
-      followers: stats.followers,
-      total_stars: stats.total_stars,
-      public_repos: stats.public_repos,
-      timestamp: new Date().toISOString(),
-    })
+    console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Cache SAVE successful', username, key, ttl_seconds: ttl, followers: stats.followers, total_stars: stats.total_stars, public_repos: stats.public_repos, timestamp: new Date().toISOString() }))
   } catch (error) {
-    console.error('[Redis Cache] Error writing to cache:', {
-      username,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      error_name: error instanceof Error ? error.name : typeof error,
-      timestamp: new Date().toISOString(),
-    })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: '[Redis Cache] Error writing to cache', username, error: errorMessage, error_name: errorName, timestamp: new Date().toISOString() }))
     // Open circuit breaker on write errors
     openCircuitBreaker()
     // Don't throw - caching failures shouldn't break the app
@@ -328,7 +304,9 @@ export async function getCachedBadge(
     
     return null
   } catch (error) {
-    console.error('Error reading badge from Redis cache:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Error reading badge from Redis cache', username, error: errorMessage, error_name: errorName }))
     // Open circuit breaker on read errors
     openCircuitBreaker()
     return null
@@ -358,7 +336,9 @@ export async function setCachedBadge(
     // Successfully wrote to cache, close circuit breaker if it was open
     closeCircuitBreaker()
   } catch (error) {
-    console.error('Error writing badge to Redis cache:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Error writing badge to Redis cache', username, error: errorMessage, error_name: errorName }))
     // Open circuit breaker on write errors
     openCircuitBreaker()
     // Don't throw - caching failures shouldn't break the app
@@ -377,7 +357,9 @@ export async function closeRedisConnection(): Promise<void> {
       }
     } catch (error) {
       // Ignore errors when closing - client might already be closed
-      console.warn('Error closing Redis connection:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorName = error instanceof Error ? error.name : typeof error
+      console.warn(JSON.stringify({ level: 'warn', message: 'Error closing Redis connection', error: errorMessage, error_name: errorName }))
     } finally {
       redisClient = null
     }

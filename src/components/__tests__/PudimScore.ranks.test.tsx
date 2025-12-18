@@ -2,10 +2,11 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PudimScore } from '../PudimScore'
-import { getPudimScore } from '@/app/_server/actions'
+import { getPudimScore, wouldQualifyForTop10 } from '@/app/_server/actions'
 
 vi.mock('@/app/_server/actions', () => ({
   getPudimScore: vi.fn(),
+  wouldQualifyForTop10: vi.fn(),
 }))
 
 describe('PudimScore - All Rank Calculations', () => {
@@ -207,18 +208,26 @@ describe('PudimScore - All Rank Calculations', () => {
     }
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
+    vi.mocked(wouldQualifyForTop10).mockResolvedValue(false) // Don't qualify, so share buttons show outside consent block
     render(<PudimScore />)
     
     await user.type(screen.getByPlaceholderText('GitHub Username'), 'testuser')
     await user.click(screen.getByRole('button', { name: /Calculate/i }))
 
+    // Wait for result to be displayed first
     await waitFor(() => {
-      expect(screen.getByText(/Share your score:/i)).toBeInTheDocument()
+      expect(screen.getByText('Tasty Pudding')).toBeInTheDocument()
+    }, { timeout: 3000 })
+    
+    // Share buttons should be visible once result is displayed
+    // They're always rendered when result exists, so wait for them
+    await waitFor(() => {
       expect(screen.getByTitle('Share on X')).toBeInTheDocument()
-      expect(screen.getByTitle('Share on Bluesky')).toBeInTheDocument()
-      expect(screen.getByTitle('Share on Facebook')).toBeInTheDocument()
-      expect(screen.getByTitle('Share on LinkedIn')).toBeInTheDocument()
-    })
+    }, { timeout: 3000 })
+    
+    expect(screen.getByTitle('Share on Bluesky')).toBeInTheDocument()
+    expect(screen.getByTitle('Share on Facebook')).toBeInTheDocument()
+    expect(screen.getByTitle('Share on LinkedIn')).toBeInTheDocument()
   })
 })
 

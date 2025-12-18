@@ -10,6 +10,7 @@ import {
   PutCommand,
   QueryCommand,
   ScanCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb'
 import type { GitHubStats, PudimRank } from '@/lib/pudim/types'
 
@@ -21,6 +22,7 @@ export type PudimScoreRecord = {
   score: number
   rank: PudimRank
   stats: GitHubStats
+  leaderboard_consent?: boolean // User consent to appear in leaderboard
 }
 
 export type TopScoreEntry = {
@@ -73,9 +75,7 @@ function openCircuitBreaker(): void {
     10
   )
   circuitBreakerOpenUntil = Date.now() + cooldown
-  console.log(
-    `DynamoDB circuit breaker opened. Will retry after ${cooldown}ms.`
-  )
+  console.log(JSON.stringify({ level: 'warn', message: 'DynamoDB circuit breaker opened', cooldown_ms: cooldown }))
 }
 
 /**
@@ -134,7 +134,9 @@ function getClients(): {
         },
       })
     } catch (error) {
-      console.error('Failed to create DynamoDB clients:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorName = error instanceof Error ? error.name : typeof error
+      console.error(JSON.stringify({ level: 'error', message: 'Failed to create DynamoDB clients', error: errorMessage, error_name: errorName }))
       openCircuitBreaker()
       return null
     }
@@ -204,12 +206,16 @@ export async function ensureTableExists(): Promise<boolean> {
         if (createError instanceof ResourceInUseException) {
           return true
         }
-        console.error('Failed to create DynamoDB table:', createError)
+        const errorMessage = createError instanceof Error ? createError.message : 'Unknown error'
+        const errorName = createError instanceof Error ? createError.name : typeof createError
+        console.error(JSON.stringify({ level: 'error', message: 'Failed to create DynamoDB table', error: errorMessage, error_name: errorName }))
         openCircuitBreaker()
         return false
       }
     } else {
-      console.error('DynamoDB table check failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorName = error instanceof Error ? error.name : typeof error
+      console.error(JSON.stringify({ level: 'error', message: 'DynamoDB table check failed', error: errorMessage, error_name: errorName }))
       openCircuitBreaker()
       return false
     }
@@ -220,34 +226,26 @@ export async function ensureTableExists(): Promise<boolean> {
  * Saves a pudim score record to DynamoDB
  * Only saves if the score has changed from the last saved score
  * Silently returns if DynamoDB is disabled or unavailable
+ * @param leaderboardConsent - User consent to appear in leaderboard (default: false)
  */
 export async function savePudimScore(
   username: string,
   score: number,
   rank: PudimRank,
-  stats: GitHubStats
+  stats: GitHubStats,
+  leaderboardConsent: boolean = false
 ): Promise<void> {
   const clients = getClients()
   if (!clients) {
     // DynamoDB is disabled or circuit breaker is open
-    console.log(`[DynamoDB] SAVE skipped for user "${username}" (DynamoDB disabled or circuit breaker open):`, {
-      username,
-      score: Math.round(score),
-      rank: rank.rank,
-      timestamp: new Date().toISOString(),
-    })
+    console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] SAVE skipped', reason: 'DynamoDB disabled or circuit breaker open', username, score: Math.round(score), rank: rank.rank, timestamp: new Date().toISOString() }))
     return
   }
 
   try {
     const tableExists = await ensureTableExists()
     if (!tableExists) {
-      console.log(`[DynamoDB] SAVE skipped for user "${username}" (table does not exist):`, {
-        username,
-        score: Math.round(score),
-        rank: rank.rank,
-        timestamp: new Date().toISOString(),
-      })
+      console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] SAVE skipped', reason: 'table does not exist', username, score: Math.round(score), rank: rank.rank, timestamp: new Date().toISOString() }))
       return
     }
 
@@ -261,24 +259,11 @@ export async function savePudimScore(
       const newScoreRounded = Math.round(score)
       
       if (existingScoreRounded === newScoreRounded) {
-        console.log(`[DynamoDB] SAVE skipped for user "${username}" (score unchanged):`, {
-          username,
-          score: newScoreRounded,
-          rank: rank.rank,
-          existing_timestamp: existingScore.timestamp,
-          timestamp: new Date().toISOString(),
-        })
+        console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] SAVE skipped', reason: 'score unchanged', username, score: newScoreRounded, rank: rank.rank, existing_timestamp: existingScore.timestamp, timestamp: new Date().toISOString() }))
         return
       }
       
-      console.log(`[DynamoDB] Score changed for user "${username}":`, {
-        username,
-        previous_score: existingScoreRounded,
-        new_score: newScoreRounded,
-        previous_rank: existingScore.rank.rank,
-        new_rank: rank.rank,
-        previous_timestamp: existingScore.timestamp,
-      })
+      console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] Score changed', username, previous_score: existingScoreRounded, new_score: newScoreRounded, previous_rank: existingScore.rank.rank, new_rank: rank.rank, previous_timestamp: existingScore.timestamp }))
     }
 
     const timestamp = new Date().toISOString()
@@ -289,6 +274,7 @@ export async function savePudimScore(
       score,
       rank,
       stats,
+      leaderboard_consent: leaderboardConsent,
     }
 
     await clients.docClient.send(
@@ -298,28 +284,64 @@ export async function savePudimScore(
       })
     )
     
-    console.log(`[DynamoDB] SAVE successful for user "${username}":`, {
-      username,
-      score: Math.round(score),
-      rank: rank.rank,
-      rank_title: rank.title,
-      timestamp,
-      followers: stats.followers,
-      total_stars: stats.total_stars,
-      public_repos: stats.public_repos,
-      is_new_user: existingScore === null,
-    })
+    console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] SAVE successful', username, score: Math.round(score), rank: rank.rank, rank_title: rank.title, timestamp, followers: stats.followers, total_stars: stats.total_stars, public_repos: stats.public_repos, is_new_user: existingScore === null }))
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorName = error instanceof Error ? error.name : typeof error
-    console.error('[DynamoDB] Failed to save score:', {
-      username,
-      score: Math.round(score),
-      rank: rank.rank,
-      error: errorMessage,
-      error_name: errorName,
-      timestamp: new Date().toISOString(),
-    })
+    console.error(JSON.stringify({ level: 'error', message: '[DynamoDB] Failed to save score', username, score: Math.round(score), rank: rank.rank, error: errorMessage, error_name: errorName, timestamp: new Date().toISOString() }))
+    openCircuitBreaker()
+    throw error
+  }
+}
+
+/**
+ * Updates the leaderboard consent for the user's latest score
+ * Only updates if DynamoDB is enabled and available
+ */
+export async function updateConsentForLatestScore(
+  username: string,
+  consent: boolean
+): Promise<void> {
+  const clients = getClients()
+  if (!clients) {
+    console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] UPDATE consent skipped', reason: 'DynamoDB disabled or circuit breaker open', username, consent }))
+    return
+  }
+
+  try {
+    const tableExists = await ensureTableExists()
+    if (!tableExists) {
+      console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] UPDATE consent skipped', reason: 'table does not exist', username, consent }))
+      return
+    }
+
+    // Get the latest score for this user
+    const latestScore = await getUserLatestScore(username)
+    if (!latestScore) {
+      console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] UPDATE consent skipped', reason: 'no score found for user', username, consent }))
+      return
+    }
+
+    // Update the consent field for the latest record
+    await clients.docClient.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          username: latestScore.username,
+          timestamp: latestScore.timestamp,
+        },
+        UpdateExpression: 'SET leaderboard_consent = :consent',
+        ExpressionAttributeValues: {
+          ':consent': consent,
+        },
+      })
+    )
+
+    console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] UPDATE consent successful', username, consent, timestamp: latestScore.timestamp }))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: '[DynamoDB] Failed to update consent', username, consent, error: errorMessage, error_name: errorName }))
     openCircuitBreaker()
     throw error
   }
@@ -361,7 +383,9 @@ export async function getUserLatestScore(
 
     return result.Items[0] as PudimScoreRecord
   } catch (error) {
-    console.error('Failed to get user latest score from DynamoDB:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Failed to get user latest score from DynamoDB', username, error: errorMessage, error_name: errorName }))
     openCircuitBreaker()
     return null
   }
@@ -405,8 +429,9 @@ export async function getTop10Scores(): Promise<TopScoreEntry[]> {
       }
     }
 
-    // Convert to array, sort by score descending, take top 10
+    // Convert to array, filter by consent, sort by score descending, take top 10
     const topScores = Array.from(userLatestScores.values())
+      .filter((record) => record.leaderboard_consent === true) // Only include users who consented
       .sort((a, b) => b.score - a.score)
       .slice(0, 10)
       .map((record) => ({
@@ -422,7 +447,9 @@ export async function getTop10Scores(): Promise<TopScoreEntry[]> {
 
     return topScores
   } catch (error) {
-    console.error('Failed to get top scores from DynamoDB:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Failed to get top scores from DynamoDB', error: errorMessage, error_name: errorName }))
     openCircuitBreaker()
     return []
   }
@@ -461,7 +488,9 @@ export async function getUserScoreHistory(
 
     return (result.Items || []) as PudimScoreRecord[]
   } catch (error) {
-    console.error('Failed to get user score history from DynamoDB:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Failed to get user score history from DynamoDB', username, error: errorMessage, error_name: errorName }))
     openCircuitBreaker()
     return []
   }
