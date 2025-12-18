@@ -88,10 +88,11 @@ https://pudim.dev/badge/[username]
 - 🖼️ **Your GitHub avatar** - Personal branding
 - 👤 **Username and member since date** - Show how long you've been coding
 - 🏆 **Rank and title** - Your prestigious dessert designation (e.g., "Master Pudim")
-- 📊 **Key Stats** - Total stars, followers, and public repos at a glance
+- 📊 **Key Stats** - Total stars, followers, public repos, and calculated score at a glance
 - 🎨 **Top 5 Programming Languages** - Your "Pudim Flavors" with color-coded bars
 - 🔄 **Real-time Updates** - Badge refreshes automatically when your stats change
 - 📱 **Responsive Design** - Looks great on any device or platform
+- 🎯 **Score Display** - Your calculated Pudim Score prominently displayed
 
 **Pro Tips:**
 - Add the clickable version to your GitHub profile README for maximum engagement
@@ -458,6 +459,41 @@ java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar -sharedDb
 DYNAMODB_ENABLED=true DYNAMODB_ENDPOINT=http://localhost:8000 npm run dev
 ```
 
+### Flushing Data for Testing
+
+A utility script is available to flush all data from DynamoDB and Redis for testing:
+
+```bash
+# Flush both DynamoDB and Redis
+npm run flush-all
+
+# Or run directly with tsx
+npx tsx scripts/flush-all.ts
+```
+
+**What it does:**
+- Deletes all items from the `PudimScores` DynamoDB table
+- Clears all keys from Redis (using `FLUSHALL`)
+- Respects environment variables (only flushes enabled services)
+- Safe to run in development environments
+
+**Usage:**
+```bash
+# Ensure services are running
+docker-compose up redis dynamodb -d
+
+# Flush all data
+npm run flush-all
+
+# Output:
+# 🚀 Starting flush operation...
+# 🗑️  Flushing DynamoDB...
+# ✅ DynamoDB flushed: 42 items deleted
+# 🗑️  Flushing Redis...
+# ✅ Redis flushed: All keys deleted
+# ✨ All databases flushed successfully!
+```
+
 ### Disabling DynamoDB
 
 To run without DynamoDB:
@@ -468,6 +504,107 @@ DYNAMODB_ENABLED=false npm run dev
 ```
 
 The application continues to work normally, scores just won't be persisted.
+
+## 🏆 Leaderboard Feature
+
+The leaderboard displays the top 10 pudim scores from users who have calculated their scores **and given explicit consent** to appear on the leaderboard. It shows rankings, user information, and calculated scores in a beautiful, interactive interface.
+
+### Features
+
+- **🏅 Top 10 Rankings**: Displays the top 10 scores with medals for top 3
+- **👤 User Profiles**: Shows avatar, username, and GitHub stats
+- **📊 Score Display**: Shows calculated score and rank information
+- **🔄 Real-time Updates**: Updates automatically as new scores are calculated
+- **✅ User Consent**: Only users who explicitly consent appear on the leaderboard
+- **⚙️ Configurable**: Enable/disable via environment variable
+- **🛡️ Conditional Display**: Only shows when both DynamoDB and leaderboard are enabled
+- **📱 Responsive Design**: Optimized layout for wide and narrow screens
+
+### User Consent System
+
+**Privacy-First Approach**: Users have full control over their leaderboard visibility.
+
+1. **Automatic Score Saving**: When a user calculates their score, it's automatically saved to DynamoDB with `leaderboard_consent: false`
+2. **Qualification Check**: If the user's score qualifies for the top 10, a consent UI appears
+3. **Explicit Consent**: Users can choose to join the leaderboard by checking a consent checkbox
+4. **Leaderboard Visibility**: Only scores with `leaderboard_consent: true` appear on the leaderboard
+5. **User Control**: Users can see their ranking position after giving consent
+
+**Consent UI Features:**
+- Only appears if the user's score qualifies for top 10
+- Shows the user's score and rank as badges
+- Lists what information will be displayed on the leaderboard
+- Success toast notification after consent is saved
+- Displays user's ranking position as a badge after consent
+
+### Configuration
+
+To enable the leaderboard, you need both DynamoDB and the leaderboard feature enabled:
+
+```bash
+# Enable DynamoDB (required for leaderboard)
+DYNAMODB_ENABLED=true
+
+# Enable leaderboard feature
+LEADERBOARD_ENABLED=true
+
+# DynamoDB endpoint (for local development)
+DYNAMODB_ENDPOINT=http://localhost:8000
+
+# AWS credentials (for local, use dummy values)
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=local
+AWS_SECRET_ACCESS_KEY=local
+```
+
+### How It Works
+
+1. **Score Storage**: When users calculate their scores, they are automatically saved to DynamoDB with `leaderboard_consent: false` (if `DYNAMODB_ENABLED=true`)
+2. **Qualification Check**: The system checks if the user's score would qualify for the top 10
+3. **Consent UI**: If qualified, a consent UI appears allowing the user to opt-in
+4. **Consent Update**: If the user gives consent, the `leaderboard_consent` field is updated to `true` for their latest score
+5. **Leaderboard Display**: The frontend checks if both `DYNAMODB_ENABLED` and `LEADERBOARD_ENABLED` are `true`
+6. **Top Scores Query**: The leaderboard component fetches the top 10 scores from DynamoDB (filtered by `leaderboard_consent: true`)
+7. **User Experience**: The leaderboard section appears on the homepage between the calculator and features sections
+
+### Display Requirements
+
+The leaderboard will only be displayed when:
+- ✅ `DYNAMODB_ENABLED=true` (DynamoDB must be enabled to store scores)
+- ✅ `LEADERBOARD_ENABLED=true` (Leaderboard feature must be explicitly enabled)
+
+If either condition is false, the leaderboard section will not appear on the homepage.
+
+### Leaderboard Navigation
+
+When the leaderboard is enabled and visible, a "Leaderboard" link appears in:
+- **Desktop Navigation**: Top menu bar
+- **Mobile Navigation**: Slide-out menu
+
+### Development Setup
+
+**Using Docker Compose:**
+
+```bash
+# Start DynamoDB Local
+docker-compose up dynamodb -d
+
+# Start application with DynamoDB and leaderboard enabled
+DYNAMODB_ENABLED=true LEADERBOARD_ENABLED=true npm run dev
+```
+
+**For Production:**
+
+```bash
+# Enable both features
+DYNAMODB_ENABLED=true
+LEADERBOARD_ENABLED=true
+
+# Omit DYNAMODB_ENDPOINT to use AWS DynamoDB
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=<your-key>
+AWS_SECRET_ACCESS_KEY=<your-secret>
+```
 
 ### Production Considerations
 
@@ -848,6 +985,7 @@ The Docker image supports the following environment variables:
 | `DYNAMODB_ENABLED` | `false` | Enable DynamoDB score storage |
 | `DYNAMODB_ENDPOINT` | - | DynamoDB endpoint (omit for AWS) |
 | `DYNAMODB_CIRCUIT_BREAKER_COOLDOWN` | `300000` | Circuit breaker cooldown in ms (5 min) |
+| `LEADERBOARD_ENABLED` | `false` | Enable leaderboard feature (requires `DYNAMODB_ENABLED=true`) |
 | `AWS_REGION` | `us-east-1` | AWS region |
 | `AWS_ACCESS_KEY_ID` | - | AWS access key (use `local` for DynamoDB Local) |
 | `AWS_SECRET_ACCESS_KEY` | - | AWS secret key (use `local` for DynamoDB Local) |
@@ -1021,23 +1159,24 @@ npm run test:integration
 
 | Suite | Lines | Statements | Branches | Functions |
 |-------|-------|------------|----------|-----------|
-| **Unit Tests** | ~89% | ~89% | ~84% | ~90% |
-| **Integration Tests** | ~84% | ~84% | ~82% | ~94% |
+| **Unit Tests** | ~90% | ~90% | ~84% | ~90% |
+| **Integration Tests** | ~74% | ~74% | ~57% | ~94% |
 
 The comprehensive test suite covers:
-- ✅ **Components**: Navbar, Footer, PudimScore (with full user interactions)
+- ✅ **Components**: Navbar, Footer, PudimScore, Leaderboard (with full user interactions)
 - ✅ **Pages**: Home page, Calculator page
 - ✅ **API Routes**: Health check endpoint
-- ✅ **Server Actions**: GitHub stats fetching and score calculation
+- ✅ **Server Actions**: GitHub stats fetching, score calculation, leaderboard consent management
 - ✅ **Business Logic**: Score calculation algorithm with all rank thresholds
 - ✅ **GitHub Integration**: User data fetching, error handling, language analysis
-- ✅ **UI Components**: Card, Dialog, Sheet components
+- ✅ **UI Components**: Card, Dialog, Sheet, Badge components
 - ✅ **Utilities**: Class name merging utility
-- ✅ **Redis Caching**: Connection handling, circuit breaker, cache operations
-- ✅ **DynamoDB Storage**: Table creation, score persistence, queries, top scores
+- ✅ **Redis Caching**: Connection handling, circuit breaker, cache operations, badge caching
+- ✅ **DynamoDB Storage**: Table creation, score persistence, queries, top scores, consent updates
+- ✅ **Leaderboard**: Top 10 rankings, user consent system, qualification checks
 - ✅ **Edge Cases**: Runtime detection, error handling, fault tolerance
 
-**Total: 238 tests across 20 test files**
+**Total: 238+ tests across 20+ test files**
 
 ### Writing Tests
 
@@ -1200,7 +1339,8 @@ The project follows a clean, organized structure with clear separation of concer
 - **`lib/dynamodb.ts`** - DynamoDB score storage
   - Automatic table creation
   - Score persistence with UTC timestamps
-  - Top scores querying
+  - User consent tracking (`leaderboard_consent` field)
+  - Top scores querying (filtered by consent)
   - Circuit breaker pattern for fault tolerance
 
 - **`components/`** - React components
@@ -1317,6 +1457,8 @@ pudim.dev/
 ├── next.config.ts               # Next.js configuration
 ├── package.json                 # Dependencies (v0.2.0)
 ├── postcss.config.mjs           # PostCSS configuration
+├── scripts/
+│   └── flush-all.ts             # Utility script to flush DynamoDB and Redis
 ├── tsconfig.json                # TypeScript config
 └── vitest.config.ts             # Vitest test configuration
 ```
