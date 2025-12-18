@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { getPudimScore, updateLeaderboardConsent, wouldQualifyForTop10, type PudimScoreResult } from "@/app/_server/actions"
+import { getPudimScore, updateLeaderboardConsent, wouldQualifyForTop10, checkExistingConsent, type PudimScoreResult } from "@/app/_server/actions"
 import { Loader2, Star, Users, GitFork, Info, Share2, Trophy, User, Award, Code } from "lucide-react"
+import { useLeaderboardRefresh } from "@/contexts/LeaderboardRefreshContext"
 
 // Map popular languages to colors (simplified map)
 const languageColors: Record<string, string> = {
@@ -48,6 +49,7 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
   const [consentSaved, setConsentSaved] = useState(false)
   const [rankingPosition, setRankingPosition] = useState<number | null>(null)
   const [showToast, setShowToast] = useState(false)
+  const { refresh } = useLeaderboardRefresh()
 
   const loadStats = useCallback(async (usernameToLoad: string) => {
     if (!usernameToLoad.trim()) return
@@ -55,6 +57,14 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
     setLoading(true)
     setError("")
     setResult(null)
+    // Reset leaderboard-related state when calculating a new score
+    setLeaderboardConsent(false)
+    setSavingConsent(false)
+    setQualifiesForTop10(false)
+    setCheckingQualification(false)
+    setConsentSaved(false)
+    setRankingPosition(null)
+    setShowToast(false)
     
     try {
       const data = await getPudimScore(usernameToLoad)
@@ -63,6 +73,21 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
         setError(data.error)
       } else {
         setResult(data)
+        
+        // Check if user already has consent enabled
+        const normalizedUsername = data.stats.username.toLowerCase()
+        try {
+          const consentInfo = await checkExistingConsent(normalizedUsername)
+          if (consentInfo.hasConsent) {
+            setLeaderboardConsent(true)
+            setConsentSaved(true)
+            if (consentInfo.position) {
+              setRankingPosition(consentInfo.position)
+            }
+          }
+        } catch {
+          // If check fails, continue with normal flow
+        }
         
         // Check if user qualifies for top 10
         setCheckingQualification(true)
@@ -326,7 +351,15 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
                 <CardTitle>Join the Leaderboard</CardTitle>
               </div>
               <CardDescription className="mt-2 text-left">
-                Your score of <Badge variant="default" className="font-bold">{Math.round(result.score)}</Badge> <Badge variant="secondary" className={result.rank.color}>{result.rank.title}</Badge> qualifies for the top 10! Opt in to appear in the leaderboard.
+                {consentSaved ? (
+                  <>
+                    Your score of <Badge variant="default" className="font-bold">{Math.round(result.score)}</Badge> <Badge variant="secondary" className={result.rank.color}>{result.rank.title}</Badge> qualifies for the top 10! You&apos;re already in the leaderboard.
+                  </>
+                ) : (
+                  <>
+                    Your score of <Badge variant="default" className="font-bold">{Math.round(result.score)}</Badge> <Badge variant="secondary" className={result.rank.color}>{result.rank.title}</Badge> qualifies for the top 10! Opt in to appear in the leaderboard.
+                  </>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -383,6 +416,26 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
                             if (response.position) {
                               setRankingPosition(response.position)
                             }
+                            // Refresh leaderboard to show new values after a short delay
+                            // to ensure the consent is fully saved on the backend
+                            setTimeout(() => {
+                              console.log('🔄 Calling refresh() from PudimScore after consent saved')
+                              try {
+                                refresh()
+                                // Scroll to leaderboard section after refresh
+                                setTimeout(() => {
+                                  const leaderboardSection = document.getElementById('leaderboard')
+                                  if (leaderboardSection) {
+                                    leaderboardSection.scrollIntoView({ 
+                                      behavior: 'smooth', 
+                                      block: 'start' 
+                                    })
+                                  }
+                                }, 800) // Wait a bit for the data to load
+                              } catch (err) {
+                                console.error('❌ Error calling refresh():', err)
+                              }
+                            }, 500)
                             // Hide toast after 3 seconds
                             setTimeout(() => setShowToast(false), 3000)
                           }

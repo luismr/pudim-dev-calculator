@@ -1,28 +1,17 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useEnv } from '@/contexts/EnvContext'
 
-interface DebugLoggerProps {
-  redisEnabled: boolean
-  dynamodbEnabled: boolean
-  leaderboardEnabled: boolean
-  isLeaderboardVisible: boolean
-}
+export function DebugLogger() {
+  const { env, loading } = useEnv()
 
-export function DebugLogger({ 
-  redisEnabled, 
-  dynamodbEnabled, 
-  leaderboardEnabled, 
-  isLeaderboardVisible 
-}: DebugLoggerProps) {
   useEffect(() => {
-    console.log('🔍 Frontend Debug Info:', {
-      REDIS_ENABLED: redisEnabled,
-      DYNAMODB_ENABLED: dynamodbEnabled,
-      LEADERBOARD_ENABLED: leaderboardEnabled,
-      IS_LEADERBOARD_VISIBLE: isLeaderboardVisible
-    })
-  }, [redisEnabled, dynamodbEnabled, leaderboardEnabled, isLeaderboardVisible])
+    // Only log debug info if FRONTEND_DEBUG_ENABLED is true
+    if (!loading && env && env.FRONTEND_DEBUG_ENABLED) {
+      console.log('🔍 Frontend Debug Info:', env)
+    }
+  }, [env, loading])
   
   return null
 }

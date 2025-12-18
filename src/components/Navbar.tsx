@@ -5,13 +5,14 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
+import { useEnv } from "@/contexts/EnvContext"
 
-interface NavbarProps {
-  showLeaderboard?: boolean
-}
-
-export function Navbar({ showLeaderboard = false }: NavbarProps) {
+export function Navbar() {
   const [open, setOpen] = useState(false)
+  const { env } = useEnv()
+  
+  // Get leaderboard visibility from context (runtime value)
+  const showLeaderboard = env?.IS_LEADERBOARD_VISIBLE ?? false
 
   const navLinks = [
     { href: "/#features", label: "Features" },

@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { Leaderboard } from '../Leaderboard'
 import { getTopScores } from '@/app/_server/actions'
 import type { TopScoreEntry } from '@/lib/dynamodb'
+import { TestWrapper } from '@/test/setup'
 
 vi.mock('@/app/_server/actions', () => ({
   getTopScores: vi.fn(),
@@ -16,7 +17,7 @@ describe('Leaderboard', () => {
   it('displays loading state initially', () => {
     vi.mocked(getTopScores).mockImplementation(() => new Promise(() => {})) // Never resolves
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     expect(screen.getByText('🏆 Top 10 Pudim Scores')).toBeInTheDocument()
     expect(screen.getByText('Loading leaderboard...')).toBeInTheDocument()
@@ -25,7 +26,7 @@ describe('Leaderboard', () => {
   it('displays error state when getTopScores returns error', async () => {
     vi.mocked(getTopScores).mockResolvedValue({ error: 'Leaderboard is not enabled' })
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       expect(screen.getByText('Leaderboard is not enabled')).toBeInTheDocument()
@@ -35,7 +36,7 @@ describe('Leaderboard', () => {
   it('displays error state when getTopScores throws', async () => {
     vi.mocked(getTopScores).mockRejectedValue(new Error('Network error'))
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       expect(screen.getByText('Failed to load leaderboard')).toBeInTheDocument()
@@ -45,7 +46,7 @@ describe('Leaderboard', () => {
   it('displays empty state when no scores exist', async () => {
     vi.mocked(getTopScores).mockResolvedValue([])
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       expect(screen.getByText('No scores yet. Be the first to calculate your pudim score!')).toBeInTheDocument()
@@ -90,7 +91,7 @@ describe('Leaderboard', () => {
 
     vi.mocked(getTopScores).mockResolvedValue(mockScores)
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       expect(screen.getByText('user1')).toBeInTheDocument()
@@ -136,7 +137,7 @@ describe('Leaderboard', () => {
 
     vi.mocked(getTopScores).mockResolvedValue(mockScores)
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       expect(screen.getByText('500 followers')).toBeInTheDocument()
@@ -167,7 +168,7 @@ describe('Leaderboard', () => {
 
     vi.mocked(getTopScores).mockResolvedValue(mockScores)
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       const container = screen.getByText('🏆 Top 10 Pudim Scores').closest('[data-slot="card"]')
@@ -198,7 +199,7 @@ describe('Leaderboard', () => {
 
     vi.mocked(getTopScores).mockResolvedValue(mockScores)
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       const dateElement = screen.getByText(new Date('2023-12-17T10:00:00.000Z').toLocaleDateString())
@@ -260,7 +261,7 @@ describe('Leaderboard', () => {
 
     vi.mocked(getTopScores).mockResolvedValue(mockScores)
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       expect(screen.getByText('🥉')).toBeInTheDocument()
@@ -287,7 +288,7 @@ describe('Leaderboard', () => {
 
     vi.mocked(getTopScores).mockResolvedValue(mockScores)
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       expect(screen.getByText('#4')).toBeInTheDocument()
@@ -317,7 +318,7 @@ describe('Leaderboard', () => {
 
     vi.mocked(getTopScores).mockResolvedValue(mockScores)
     
-    render(<Leaderboard />)
+    render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
       const link = screen.getByRole('link', { name: 'user1' })

@@ -38,7 +38,9 @@ export async function getPudimScore(
     console.log(JSON.stringify({ level: 'info', message: '[Pudim Score] Calculated score', username, score: Math.round(score), rank: rank.rank, rank_title: rank.title, timestamp, duration: `${Date.now() - startTime}ms` }))
 
     // Save to DynamoDB automatically (without consent) - fire and forget
-    savePudimScore(username, score, rank, stats, false).catch((error) => {
+    // Normalize username to lowercase for consistency (GitHub usernames are case-insensitive)
+    const normalizedUsername = username.toLowerCase()
+    savePudimScore(normalizedUsername, score, rank, stats, false).catch((error) => {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       const errorName = error instanceof Error ? error.name : typeof error
       console.error(JSON.stringify({ level: 'error', message: '[Pudim Score] Failed to save score to DynamoDB', error: errorMessage, error_name: errorName, username, score: Math.round(score), rank: rank.rank, timestamp: new Date().toISOString(), duration: `${Date.now() - startTime}ms` }))
@@ -90,14 +92,17 @@ export async function updateLeaderboardConsent(
   const startTime = Date.now()
   
   try {
-    await updateConsentForLatestScore(username, consent)
+    // Normalize username to lowercase for consistency (GitHub usernames are case-insensitive)
+    const normalizedUsername = username.toLowerCase()
+    await updateConsentForLatestScore(normalizedUsername, consent)
     console.log(JSON.stringify({ level: 'info', message: '[Pudim Score] Consent updated', username, leaderboard_consent: consent, duration: `${Date.now() - startTime}ms` }))
     
     // Get user's ranking position if consent is true
     let position: number | undefined
     if (consent) {
       const topScores = await getTop10Scores()
-      const userIndex = topScores.findIndex(entry => entry.username === username)
+      // Compare with lowercase for case-insensitive matching
+      const userIndex = topScores.findIndex(entry => entry.username.toLowerCase() === normalizedUsername)
       if (userIndex !== -1) {
         position = userIndex + 1
       }
@@ -141,6 +146,38 @@ export async function wouldQualifyForTop10(score: number): Promise<boolean> {
   } catch {
     // If we can't check, don't show the consent option
     return false
+  }
+}
+
+/**
+ * Server action: Check if user already has consent enabled and get their ranking position
+ * Returns consent status and position if available
+ */
+export async function checkExistingConsent(username: string): Promise<{ hasConsent: boolean; position?: number }> {
+  const leaderboardEnabled = process.env.LEADERBOARD_ENABLED === 'true'
+  const dynamodbEnabled = process.env.DYNAMODB_ENABLED === 'true'
+  
+  if (!leaderboardEnabled || !dynamodbEnabled) {
+    return { hasConsent: false }
+  }
+
+  try {
+    const { getUserLatestScore } = await import('@/lib/dynamodb')
+    const normalizedUsername = username.toLowerCase()
+    const latestScore = await getUserLatestScore(normalizedUsername)
+    
+    if (!latestScore || !latestScore.leaderboard_consent) {
+      return { hasConsent: false }
+    }
+
+    // Get user's ranking position
+    const topScores = await getTop10Scores()
+    const userIndex = topScores.findIndex(entry => entry.username.toLowerCase() === normalizedUsername)
+    const position = userIndex !== -1 ? userIndex + 1 : undefined
+
+    return { hasConsent: true, position }
+  } catch {
+    return { hasConsent: false }
   }
 }
 

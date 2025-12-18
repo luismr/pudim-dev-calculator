@@ -6,23 +6,33 @@ import type { TopScoreEntry } from '@/lib/dynamodb'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { useLeaderboardRefresh } from '@/contexts/LeaderboardRefreshContext'
 
 export function Leaderboard() {
   const [topScores, setTopScores] = useState<TopScoreEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { refreshKey } = useLeaderboardRefresh()
 
   useEffect(() => {
+    console.log('📊 Leaderboard useEffect triggered, refreshKey:', refreshKey)
     async function fetchTopScores() {
+      setLoading(true)
+      setError(null)
       try {
+        console.log('📊 Fetching top scores...')
         const result = await getTopScores()
         
         if ('error' in result) {
+          console.error('📊 Error fetching top scores:', result.error)
           setError(result.error)
         } else {
+          console.log('📊 Top scores fetched successfully, count:', result.length)
           setTopScores(result)
+          setError(null)
         }
-      } catch {
+      } catch (err) {
+        console.error('📊 Failed to load leaderboard:', err)
         setError('Failed to load leaderboard')
       } finally {
         setLoading(false)
@@ -30,7 +40,7 @@ export function Leaderboard() {
     }
 
     fetchTopScores()
-  }, [])
+  }, [refreshKey])
 
   if (loading) {
     return (

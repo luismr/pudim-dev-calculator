@@ -3,10 +3,14 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PudimScore } from '../PudimScore'
 import { getPudimScore } from '@/app/_server/actions'
+import { TestWrapper } from '@/test/setup'
 
 // Mock the server action
 vi.mock('@/app/_server/actions', () => ({
   getPudimScore: vi.fn(),
+  updateLeaderboardConsent: vi.fn(),
+  wouldQualifyForTop10: vi.fn(),
+  checkExistingConsent: vi.fn(),
 }))
 
 describe('PudimScore', () => {
@@ -15,14 +19,14 @@ describe('PudimScore', () => {
   })
 
   it('renders the input field and calculate button', () => {
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     expect(screen.getByPlaceholderText('GitHub Username')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Calculate/i })).toBeInTheDocument()
   })
 
   it('does not show results initially', () => {
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     expect(screen.queryByText(/Master Pudim/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/STARS/i)).not.toBeInTheDocument()
@@ -34,7 +38,7 @@ describe('PudimScore', () => {
       new Promise(resolve => setTimeout(() => resolve({ error: 'Not found' }), 100))
     )
 
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     const input = screen.getByPlaceholderText('GitHub Username')
     const button = screen.getByRole('button', { name: /Calculate/i })
@@ -52,7 +56,7 @@ describe('PudimScore', () => {
       error: 'User not found',
     })
 
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     const input = screen.getByPlaceholderText('GitHub Username')
     const button = screen.getByRole('button', { name: /Calculate/i })
@@ -92,7 +96,7 @@ describe('PudimScore', () => {
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     const input = screen.getByPlaceholderText('GitHub Username')
     const button = screen.getByRole('button', { name: /Calculate/i })
@@ -136,7 +140,7 @@ describe('PudimScore', () => {
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     const input = screen.getByPlaceholderText('GitHub Username')
     const button = screen.getByRole('button', { name: /Calculate/i })
@@ -173,7 +177,7 @@ describe('PudimScore', () => {
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
-    render(<PudimScore initialUsername="initialuser" />)
+    render(<PudimScore initialUsername="initialuser" />, { wrapper: TestWrapper })
 
     await waitFor(() => {
       expect(screen.getByText('initialuser')).toBeInTheDocument()
@@ -208,7 +212,7 @@ describe('PudimScore', () => {
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     const input = screen.getByPlaceholderText('GitHub Username')
     const button = screen.getByRole('button', { name: /Calculate/i })
@@ -248,7 +252,7 @@ describe('PudimScore', () => {
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     const input = screen.getByPlaceholderText('GitHub Username')
     const button = screen.getByRole('button', { name: /Calculate/i })
@@ -266,7 +270,7 @@ describe('PudimScore', () => {
     const user = userEvent.setup()
     vi.mocked(getPudimScore).mockRejectedValue(new Error('Unexpected error'))
 
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     const input = screen.getByPlaceholderText('GitHub Username')
     const button = screen.getByRole('button', { name: /Calculate/i })
@@ -301,7 +305,7 @@ describe('PudimScore', () => {
       },
     })
 
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     const input = screen.getByPlaceholderText('GitHub Username')
     const button = screen.getByRole('button', { name: /Calculate/i })
@@ -343,7 +347,7 @@ describe('PudimScore', () => {
 
     vi.mocked(getPudimScore).mockResolvedValue(mockResult)
 
-    render(<PudimScore />)
+    render(<PudimScore />, { wrapper: TestWrapper })
     
     const input = screen.getByPlaceholderText('GitHub Username')
     const button = screen.getByRole('button', { name: /Calculate/i })
