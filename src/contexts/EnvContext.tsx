@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { setDebugEnabled, logger } from '@/lib/logger'
 
 interface EnvValues {
   REDIS_ENABLED: boolean
@@ -52,13 +53,14 @@ export function EnvProvider({ children }: EnvProviderProps) {
       })
       .then(data => {
         setEnv(data)
+        setDebugEnabled(data.FRONTEND_DEBUG_ENABLED || false)
         setLoading(false)
       })
       .catch(err => {
         const error = err instanceof Error ? err : new Error('Failed to fetch environment variables')
         setError(error)
         setLoading(false)
-        console.error('Failed to fetch environment variables:', error)
+        logger.error('Failed to fetch environment variables:', error)
       })
   }, [])
 

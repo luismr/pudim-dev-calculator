@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { useLeaderboardRefresh } from '@/contexts/LeaderboardRefreshContext'
+import { logger } from '@/lib/logger'
 
 export function Leaderboard() {
   const [topScores, setTopScores] = useState<TopScoreEntry[]>([])
@@ -15,24 +16,24 @@ export function Leaderboard() {
   const { refreshKey } = useLeaderboardRefresh()
 
   useEffect(() => {
-    console.log('📊 Leaderboard useEffect triggered, refreshKey:', refreshKey)
+    logger.log('📊 Leaderboard useEffect triggered, refreshKey:', refreshKey)
     async function fetchTopScores() {
       setLoading(true)
       setError(null)
       try {
-        console.log('📊 Fetching top scores...')
+        logger.log('📊 Fetching top scores...')
         const result = await getTopScores()
         
         if ('error' in result) {
-          console.error('📊 Error fetching top scores:', result.error)
+          logger.error('📊 Error fetching top scores:', result.error)
           setError(result.error)
         } else {
-          console.log('📊 Top scores fetched successfully, count:', result.length)
+          logger.log('📊 Top scores fetched successfully, count:', result.length)
           setTopScores(result)
           setError(null)
         }
       } catch (err) {
-        console.error('📊 Failed to load leaderboard:', err)
+        logger.error('📊 Failed to load leaderboard:', err)
         setError('Failed to load leaderboard')
       } finally {
         setLoading(false)
@@ -118,7 +119,7 @@ export function Leaderboard() {
                 {/* User Info - Vertically centered with avatar */}
                 <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
                   {/* Username and badges on the left */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 flex-shrink-0">
                     <a
                       href={`/calculator/${entry.username}`}
                       className="font-semibold hover:underline truncate"
@@ -127,17 +128,20 @@ export function Leaderboard() {
                     >
                       {entry.username}
                     </a>
-                    <Badge variant="secondary" className={entry.rank.color}>
-                      {entry.rank.emoji} {entry.rank.rank}
-                    </Badge>
-                    {/* Ranking title badge - visible on wider screens only */}
-                    <Badge variant="outline" className="hidden md:inline-flex">
-                      {entry.rank.title}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {/* Rank badge - below username on narrow screens, inline on wider screens */}
+                      <Badge variant="secondary" className={`${entry.rank.color} w-fit`}>
+                        {entry.rank.emoji} {entry.rank.rank}
+                      </Badge>
+                      {/* Title badge - visible on wider screens only */}
+                      <Badge variant="outline" className="hidden md:inline-flex w-fit">
+                        {entry.rank.title}
+                      </Badge>
+                    </div>
                   </div>
 
-                  {/* Stats centered in the middle - hidden on narrow screens */}
-                  <div className="hidden md:flex text-sm text-muted-foreground items-center gap-2 flex-1 justify-center">
+                  {/* Stats aligned to the right - hidden on narrow screens */}
+                  <div className="hidden md:flex text-sm text-muted-foreground items-center gap-2 flex-1 justify-end">
                     <span>{entry.followers} followers</span>
                     <span>•</span>
                     <span>{entry.total_stars} stars</span>
@@ -149,7 +153,13 @@ export function Leaderboard() {
                   <div className="text-right flex-shrink-0">
                     <div className="text-2xl font-bold">{entry.score.toFixed(0)}</div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(entry.timestamp).toLocaleDateString()}
+                      {(() => {
+                        const date = new Date(entry.timestamp)
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const year = date.getFullYear()
+                        return `${day}/${month}/${year}`
+                      })()}
                     </div>
                   </div>
                 </div>

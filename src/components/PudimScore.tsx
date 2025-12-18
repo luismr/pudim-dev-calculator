@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { getPudimScore, updateLeaderboardConsent, wouldQualifyForTop10, checkExistingConsent, type PudimScoreResult } from "@/app/_server/actions"
 import { Loader2, Star, Users, GitFork, Info, Share2, Trophy, User, Award, Code } from "lucide-react"
 import { useLeaderboardRefresh } from "@/contexts/LeaderboardRefreshContext"
+import { logger } from "@/lib/logger"
 
 // Map popular languages to colors (simplified map)
 const languageColors: Record<string, string> = {
@@ -419,7 +420,7 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
                             // Refresh leaderboard to show new values after a short delay
                             // to ensure the consent is fully saved on the backend
                             setTimeout(() => {
-                              console.log('🔄 Calling refresh() from PudimScore after consent saved')
+                              logger.log('🔄 Calling refresh() from PudimScore after consent saved')
                               try {
                                 refresh()
                                 // Scroll to leaderboard section after refresh
@@ -433,7 +434,7 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
                                   }
                                 }, 800) // Wait a bit for the data to load
                               } catch (err) {
-                                console.error('❌ Error calling refresh():', err)
+                                logger.error('❌ Error calling refresh():', err)
                               }
                             }, 500)
                             // Hide toast after 3 seconds

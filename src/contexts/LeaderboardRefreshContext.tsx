@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { logger } from '@/lib/logger'
 
 interface LeaderboardRefreshContextType {
   refreshKey: number
@@ -25,10 +26,10 @@ export function LeaderboardRefreshProvider({ children }: LeaderboardRefreshProvi
   const [refreshKey, setRefreshKey] = useState(0)
 
   const refresh = useCallback(() => {
-    console.log('🔄 Refreshing leaderboard...')
+    logger.log('🔄 Refreshing leaderboard...')
     setRefreshKey(prev => {
       const newKey = prev + 1
-      console.log('🔄 Leaderboard refreshKey changed:', prev, '->', newKey)
+      logger.log('🔄 Leaderboard refreshKey changed:', prev, '->', newKey)
       return newKey
     })
   }, [])

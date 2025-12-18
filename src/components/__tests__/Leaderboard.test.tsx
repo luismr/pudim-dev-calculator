@@ -202,7 +202,8 @@ describe('Leaderboard', () => {
     render(<Leaderboard />, { wrapper: TestWrapper })
     
     await waitFor(() => {
-      const dateElement = screen.getByText(new Date('2023-12-17T10:00:00.000Z').toLocaleDateString())
+      // Date format is DD/MM/YYYY
+      const dateElement = screen.getByText('17/12/2023')
       expect(dateElement).toBeInTheDocument()
     })
   })
