@@ -4,11 +4,6 @@ const nextConfig: NextConfig = {
   // Enable standalone output for Docker deployment
   output: 'standalone',
   
-  // Enable instrumentation hook for startup logging
-  experimental: {
-    instrumentationHook: true,
-  },
-  
   // Enable image optimization for production
   images: {
     remotePatterns: [
