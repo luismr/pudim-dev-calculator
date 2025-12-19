@@ -13,6 +13,7 @@ import {
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb'
 import type { GitHubStats, PudimRank } from '@/lib/pudim/types'
+import { getCachedStatistics, setCachedStatistics, invalidateStatisticsCache } from '@/lib/redis'
 
 const TABLE_NAME = 'PudimScores'
 
@@ -285,6 +286,18 @@ export async function savePudimScore(
     )
     
     console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] SAVE successful', username, score: Math.round(score), rank: rank.rank, rank_title: rank.title, timestamp, followers: stats.followers, total_stars: stats.total_stars, public_repos: stats.public_repos, is_new_user: existingScore === null }))
+    
+    // Invalidate and refresh statistics cache after saving a new score
+    invalidateStatisticsCache().catch((error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error(JSON.stringify({ level: 'error', message: '[DynamoDB] Failed to invalidate statistics cache after save', username, error: errorMessage, timestamp: new Date().toISOString() }))
+    })
+    
+    // Refresh statistics cache in background (fire and forget)
+    getStatistics().catch((error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error(JSON.stringify({ level: 'error', message: '[DynamoDB] Failed to refresh statistics cache after save', username, error: errorMessage, timestamp: new Date().toISOString() }))
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorName = error instanceof Error ? error.name : typeof error
@@ -338,6 +351,19 @@ export async function updateConsentForLatestScore(
     )
 
     console.log(JSON.stringify({ level: 'info', message: '[DynamoDB] UPDATE consent successful', username, consent, timestamp: latestScore.timestamp }))
+    
+    // Invalidate and refresh statistics cache after updating consent
+    // Consent changes affect totalConsents count in statistics
+    invalidateStatisticsCache().catch((error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error(JSON.stringify({ level: 'error', message: '[DynamoDB] Failed to invalidate statistics cache after consent update', username, error: errorMessage, timestamp: new Date().toISOString() }))
+    })
+    
+    // Refresh statistics cache in background (fire and forget)
+    getStatistics().catch((error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error(JSON.stringify({ level: 'error', message: '[DynamoDB] Failed to refresh statistics cache after consent update', username, error: errorMessage, timestamp: new Date().toISOString() }))
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorName = error instanceof Error ? error.name : typeof error
@@ -419,19 +445,34 @@ export async function getTop10Scores(): Promise<TopScoreEntry[]> {
       return []
     }
 
-    // Group by username and keep only the latest entry per user
+    // First, filter to only entries with consent
+    // Then group by username (normalized to lowercase) and keep only the latest entry per user
+    // GitHub usernames are case-insensitive, so we normalize them
     const userLatestScores = new Map<string, PudimScoreRecord>()
 
     for (const item of result.Items as PudimScoreRecord[]) {
-      const existing = userLatestScores.get(item.username)
-      if (!existing || item.timestamp > existing.timestamp) {
-        userLatestScores.set(item.username, item)
+      // Only process entries with consent
+      if (item.leaderboard_consent !== true) {
+        continue
+      }
+
+      // Normalize username: lowercase and trim whitespace
+      const normalizedUsername = item.username.toLowerCase().trim()
+      
+      // Update the item's username to normalized version for consistency
+      const normalizedItem: PudimScoreRecord = {
+        ...item,
+        username: normalizedUsername,
+      }
+      
+      const existing = userLatestScores.get(normalizedUsername)
+      if (!existing || normalizedItem.timestamp > existing.timestamp) {
+        userLatestScores.set(normalizedUsername, normalizedItem)
       }
     }
 
-    // Convert to array, filter by consent, sort by score descending, take top 10
+    // Convert to array, sort by score descending, take top 10
     const topScores = Array.from(userLatestScores.values())
-      .filter((record) => record.leaderboard_consent === true) // Only include users who consented
       .sort((a, b) => b.score - a.score)
       .slice(0, 10)
       .map((record) => ({
@@ -493,5 +534,148 @@ export async function getUserScoreHistory(
     console.error(JSON.stringify({ level: 'error', message: 'Failed to get user score history from DynamoDB', username, error: errorMessage, error_name: errorName }))
     openCircuitBreaker()
     return []
+  }
+}
+
+export type StatisticsData = {
+  totalScores: number
+  totalConsents: number
+  uniqueUsers: number
+  rankDistribution: Record<string, number> // rank -> count
+  languageDistribution: Record<string, number> // language name -> count (number of users using this language)
+  averageScore: number
+}
+
+/**
+ * Gets statistics about all scores in the database
+ * Returns statistics including total scores, consents, unique users, rank distribution, and average score
+ * Returns default values if DynamoDB is disabled or unavailable
+ * Uses Redis cache if enabled to reduce DynamoDB scan operations
+ */
+export async function getStatistics(): Promise<StatisticsData> {
+  // Check cache first if Redis is enabled
+  const cachedStats = await getCachedStatistics()
+  if (cachedStats) {
+    console.log(JSON.stringify({ level: 'info', message: '[Statistics] Using cached data', timestamp: new Date().toISOString() }))
+    return cachedStats
+  }
+
+  const clients = getClients()
+  if (!clients) {
+    return {
+      totalScores: 0,
+      totalConsents: 0,
+      uniqueUsers: 0,
+      rankDistribution: {},
+      languageDistribution: {},
+      averageScore: 0,
+    }
+  }
+
+  try {
+    const tableExists = await ensureTableExists()
+    if (!tableExists) {
+      return {
+        totalScores: 0,
+        totalConsents: 0,
+        uniqueUsers: 0,
+        rankDistribution: {},
+        languageDistribution: {},
+        averageScore: 0,
+      }
+    }
+
+    console.log(JSON.stringify({ level: 'info', message: '[Statistics] Fetching from DynamoDB', timestamp: new Date().toISOString() }))
+
+    // Scan all records
+    const result = await clients.docClient.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+      })
+    )
+
+    if (!result.Items || result.Items.length === 0) {
+      return {
+        totalScores: 0,
+        totalConsents: 0,
+        uniqueUsers: 0,
+        rankDistribution: {},
+        languageDistribution: {},
+        averageScore: 0,
+      }
+    }
+
+    const records = result.Items as PudimScoreRecord[]
+    
+    // Calculate statistics
+    const totalScores = records.length
+    const totalConsents = records.filter((r) => r.leaderboard_consent === true).length
+    
+    // Get unique users (using latest score per user)
+    const userLatestScores = new Map<string, PudimScoreRecord>()
+    for (const item of records) {
+      const existing = userLatestScores.get(item.username)
+      if (!existing || item.timestamp > existing.timestamp) {
+        userLatestScores.set(item.username, item)
+      }
+    }
+    const uniqueUsers = userLatestScores.size
+    
+    // Rank distribution (using latest score per user)
+    const rankDistribution: Record<string, number> = {}
+    for (const record of userLatestScores.values()) {
+      const rank = record.rank.rank
+      rankDistribution[rank] = (rankDistribution[rank] || 0) + 1
+    }
+    
+    // Language distribution (using latest score per user)
+    // Count how many users use each language (at least once in their top languages)
+    const languageDistribution: Record<string, number> = {}
+    for (const record of userLatestScores.values()) {
+      if (record.stats.languages && record.stats.languages.length > 0) {
+        // Count each language the user has (even if they have multiple languages)
+        for (const lang of record.stats.languages) {
+          languageDistribution[lang.name] = (languageDistribution[lang.name] || 0) + 1
+        }
+      }
+    }
+    
+    // Average score (using latest score per user)
+    const scores = Array.from(userLatestScores.values()).map((r) => r.score)
+    const averageScore = scores.length > 0 
+      ? scores.reduce((sum, score) => sum + score, 0) / scores.length 
+      : 0
+
+    const statistics: StatisticsData = {
+      totalScores,
+      totalConsents,
+      uniqueUsers,
+      rankDistribution,
+      languageDistribution,
+      averageScore,
+    }
+
+    // Cache the result if Redis is enabled (fire and forget)
+    setCachedStatistics(statistics).catch((error) => {
+      // Log but don't throw - caching failures shouldn't break the app
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorName = error instanceof Error ? error.name : typeof error
+      console.error(JSON.stringify({ level: 'error', message: '[Statistics] Failed to cache statistics', error: errorMessage, error_name: errorName, timestamp: new Date().toISOString() }))
+    })
+
+    return statistics
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Failed to get statistics from DynamoDB', error: errorMessage, error_name: errorName }))
+    openCircuitBreaker()
+    return {
+      totalScores: 0,
+      totalConsents: 0,
+      uniqueUsers: 0,
+      rankDistribution: {},
+      languageDistribution: {},
+      averageScore: 0,
+    }
   }
 }

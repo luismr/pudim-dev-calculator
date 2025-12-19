@@ -5,6 +5,7 @@ import { Code, Zap, Calculator, Link2, Image as ImageIcon, Trophy, Star, Users, 
 import Link from "next/link"
 import { PudimScore } from "@/components/PudimScore"
 import { LeaderboardSection } from "@/components/LeaderboardSection"
+import { StatisticsSection } from "@/components/StatisticsSection"
 import { DebugLogger } from "@/components/DebugLogger"
 
 export default function Home() {
@@ -456,6 +457,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Statistics Section */}
+      <StatisticsSection />
     </main>
   )
 }

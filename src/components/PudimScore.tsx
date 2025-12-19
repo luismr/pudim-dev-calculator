@@ -75,6 +75,17 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
       } else {
         setResult(data)
         
+        // Refresh statistics after calculating a new score
+        // This ensures statistics are updated when new scores are added
+        setTimeout(() => {
+          logger.log('🔄 Calling refresh() from PudimScore after score calculation')
+          try {
+            refresh()
+          } catch (err) {
+            logger.error('❌ Error calling refresh() after score calculation:', err)
+          }
+        }, 500) // Small delay to ensure the score is saved to DynamoDB first
+        
         // Check if user already has consent enabled
         const normalizedUsername = data.stats.username.toLowerCase()
         try {
@@ -115,7 +126,7 @@ export function PudimScore({ initialUsername }: PudimScoreProps = {}) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [refresh])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
