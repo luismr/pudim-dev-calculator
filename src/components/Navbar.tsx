@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
@@ -10,9 +11,13 @@ import { useEnv } from "@/contexts/EnvContext"
 export function Navbar() {
   const [open, setOpen] = useState(false)
   const { env } = useEnv()
+  const router = useRouter()
   
   // Get leaderboard visibility from context (runtime value)
   const showLeaderboard = env?.IS_LEADERBOARD_VISIBLE ?? false
+
+  // Get DynamoDB availability from context
+  const isDynamoDBEnabled = env?.DYNAMODB_ENABLED ?? false
 
   const navLinks = [
     { href: "/#features", label: "Features" },
@@ -21,9 +26,41 @@ export function Navbar() {
     { href: "/#philosophy", label: "Philosophy" },
   ]
 
-  // Add leaderboard link if enabled
+  // Add leaderboard link if enabled (at the beginning)
   if (showLeaderboard) {
     navLinks.unshift({ href: "/#leaderboard", label: "Leaderboard" })
+  }
+
+  // Add statistics link if DynamoDB is enabled (after Philosophy)
+  if (isDynamoDBEnabled) {
+    navLinks.push({ href: "/#statistics", label: "Statistics" })
+  }
+
+  // Handle smooth scroll for anchor links
+  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    // Only handle anchor links (starting with #)
+    if (href.startsWith('#')) {
+      e.preventDefault()
+      const targetId = href.substring(1)
+      const element = document.getElementById(targetId)
+      
+      if (element) {
+        // Close mobile menu if open
+        setOpen(false)
+        
+        // Smooth scroll to element
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        })
+      } else {
+        // If element not found, navigate normally
+        router.push(href)
+      }
+    } else {
+      // For non-anchor links, close menu if open
+      setOpen(false)
+    }
   }
 
   return (
@@ -52,7 +89,7 @@ export function Navbar() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    onClick={() => setOpen(false)}
+                    onClick={(e) => handleLinkClick(e, link.href)}
                     className="text-base font-medium text-foreground transition-colors hover:text-primary py-2 px-2 rounded-md hover:bg-accent"
                   >
                     {link.label}
@@ -78,6 +115,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
+                onClick={(e) => handleLinkClick(e, link.href)}
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
               >
                 {link.label}
@@ -86,7 +124,7 @@ export function Navbar() {
           </nav>
           {/* Calculator Button - Always visible, forced to right */}
           <Button asChild size="sm" className="ml-2">
-            <Link href="/#calculator">
+            <Link href="/#calculator" onClick={(e) => handleLinkClick(e, '/#calculator')}>
               Calculator
             </Link>
           </Button>

@@ -28,6 +28,28 @@ vi.mock('next/navigation', () => ({
 // Mock the env API route for tests
 global.fetch = vi.fn()
 
+// Mock ResizeObserver for Recharts
+global.ResizeObserver = class ResizeObserver {
+  observe = vi.fn()
+  unobserve = vi.fn()
+  disconnect = vi.fn()
+  constructor(_callback: ResizeObserverCallback) {
+    // Callback is stored but not used in mock
+    void _callback
+  }
+} as unknown as typeof ResizeObserver
+
+// Mock Recharts ResponsiveContainer
+vi.mock('recharts', async (importOriginal) => {
+  const original = await importOriginal<typeof import('recharts')>()
+  return {
+    ...original,
+    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+      React.createElement('div', { style: { width: 800, height: 800 } }, children)
+    ),
+  }
+})
+
 // Test wrapper with all providers
 export function TestWrapper({ children }: { children: ReactElement }) {
   // Mock env values for tests
@@ -57,4 +79,3 @@ export function TestWrapper({ children }: { children: ReactElement }) {
     )
   )
 }
-

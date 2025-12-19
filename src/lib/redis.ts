@@ -1,10 +1,12 @@
 import type { GitHubStats } from './pudim/types'
+import type { StatisticsData } from './dynamodb'
 
 // Type for Redis client (from ioredis)
 // We use a minimal interface to avoid importing the full type in Edge Runtime
 type RedisClient = {
   get(key: string): Promise<string | null>
   setex(key: string, seconds: number, value: string): Promise<string>
+  del(key: string): Promise<number>
   quit(): Promise<void>
   on(event: 'ready', callback: () => void): void
   on(event: 'error', callback: (err: Error) => void): void
@@ -214,6 +216,14 @@ function getBadgeCacheKey(username: string): string {
 }
 
 /**
+ * Get cache key for statistics
+ */
+function getStatisticsCacheKey(): string {
+  const prefix = process.env.REDIS_PREFIX || 'pudim:'
+  return `${prefix}statistics`
+}
+
+/**
  * Get cached GitHub stats
  */
 export async function getCachedStats(
@@ -276,6 +286,93 @@ export async function setCachedStats(
     // Open circuit breaker on write errors
     openCircuitBreaker()
     // Don't throw - caching failures shouldn't break the app
+  }
+}
+
+/**
+ * Get cached statistics
+ */
+export async function getCachedStatistics(): Promise<StatisticsData | null> {
+  const client = await getRedisClient()
+  if (!client) {
+    return null
+  }
+
+  try {
+    const key = getStatisticsCacheKey()
+    const cached = await client.get(key)
+    
+    if (cached) {
+      // Successfully read from cache, close circuit breaker if it was open
+      closeCircuitBreaker()
+      const stats = JSON.parse(cached) as StatisticsData
+      console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Statistics Cache HIT', key, totalScores: stats.totalScores, uniqueUsers: stats.uniqueUsers, timestamp: new Date().toISOString() }))
+      return stats
+    }
+    
+    console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Statistics Cache MISS', key, timestamp: new Date().toISOString() }))
+    return null
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error(JSON.stringify({ level: 'error', message: '[Redis Cache] Error reading statistics from cache', error: errorMessage, timestamp: new Date().toISOString() }))
+    // Open circuit breaker on read errors
+    openCircuitBreaker()
+    return null
+  }
+}
+
+/**
+ * Set cached statistics with TTL
+ */
+export async function setCachedStatistics(
+  stats: StatisticsData
+): Promise<void> {
+  const client = await getRedisClient()
+  if (!client) {
+    console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Statistics Cache SAVE skipped', reason: 'Redis disabled or unavailable', timestamp: new Date().toISOString() }))
+    return
+  }
+
+  try {
+    const key = getStatisticsCacheKey()
+    // TTL in seconds, default to 5 minutes (300 seconds) for statistics
+    // Statistics don't change frequently, so 5 minutes is reasonable
+    const ttl = parseInt(process.env.REDIS_TTL || '300', 10)
+    
+    await client.setex(key, ttl, JSON.stringify(stats))
+    // Successfully wrote to cache, close circuit breaker if it was open
+    closeCircuitBreaker()
+    console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Statistics Cache SAVE successful', key, ttl_seconds: ttl, totalScores: stats.totalScores, uniqueUsers: stats.uniqueUsers, timestamp: new Date().toISOString() }))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: '[Redis Cache] Error writing statistics to cache', error: errorMessage, error_name: errorName, timestamp: new Date().toISOString() }))
+    // Open circuit breaker on write errors
+    openCircuitBreaker()
+    // Don't throw - caching failures shouldn't break the app
+  }
+}
+
+/**
+ * Invalidate statistics cache (delete it)
+ */
+export async function invalidateStatisticsCache(): Promise<void> {
+  const client = await getRedisClient()
+  if (!client) {
+    console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Statistics Cache INVALIDATE skipped', reason: 'Redis disabled or unavailable', timestamp: new Date().toISOString() }))
+    return
+  }
+
+  try {
+    const key = getStatisticsCacheKey()
+    await client.del(key)
+    closeCircuitBreaker()
+    console.log(JSON.stringify({ level: 'info', message: '[Redis Cache] Statistics Cache INVALIDATE successful', key, timestamp: new Date().toISOString() }))
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: '[Redis Cache] Error invalidating statistics cache', error: errorMessage, error_name: errorName, timestamp: new Date().toISOString() }))
+    // Don't throw - cache invalidation failures shouldn't break the app
   }
 }
 

@@ -13,7 +13,7 @@ export type {
 import { getGithubStats } from '@/lib/pudim/github'
 import { calculatePudimScore } from '@/lib/pudim/score'
 import type { PudimScoreResult, PudimError } from '@/lib/pudim/types'
-import { savePudimScore, getTop10Scores, updateConsentForLatestScore, type TopScoreEntry } from '@/lib/dynamodb'
+import { savePudimScore, getTop10Scores, updateConsentForLatestScore, getStatistics as getStatisticsFromDB, type TopScoreEntry, type StatisticsData } from '@/lib/dynamodb'
 
 export async function getPudimScore(
   username: string
@@ -207,6 +207,29 @@ export async function getTopScores(): Promise<TopScoreEntry[] | PudimError> {
     console.error(JSON.stringify({ level: 'error', message: 'Failed to fetch top scores from DynamoDB', error: errorMessage, error_name: errorName }))
     return {
       error: 'Failed to fetch top scores',
+    }
+  }
+}
+
+/**
+ * Server action: Get statistics about all scores
+ * Returns statistics including total scores, consents, unique users, rank distribution, and average score
+ */
+export async function getStatistics(): Promise<StatisticsData> {
+  try {
+    const stats = await getStatisticsFromDB()
+    return stats
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorName = error instanceof Error ? error.name : typeof error
+    console.error(JSON.stringify({ level: 'error', message: 'Failed to fetch statistics from DynamoDB', error: errorMessage, error_name: errorName }))
+    return {
+      totalScores: 0,
+      totalConsents: 0,
+      uniqueUsers: 0,
+      rankDistribution: {},
+      languageDistribution: {},
+      averageScore: 0,
     }
   }
 }
