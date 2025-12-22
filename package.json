@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.954.0",
-    "@aws-sdk/lib-dynamodb": "^3.954.0",
+    "@aws-sdk/lib-dynamodb": "^3.957.0",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-navigation-menu": "^1.2.14",
